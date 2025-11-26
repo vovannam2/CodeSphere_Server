@@ -1,6 +1,7 @@
 package com.hcmute.codesphere_server.service.common;
 
 import com.hcmute.codesphere_server.model.entity.TagEntity;
+import com.hcmute.codesphere_server.model.enums.TagType;
 import com.hcmute.codesphere_server.model.payload.response.TagResponse;
 import com.hcmute.codesphere_server.repository.common.TagRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,13 @@ public class TagService {
 
     public List<TagResponse> getAllTags() {
         List<TagEntity> tags = tagRepository.findAll();
+        return tags.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
+    public List<TagResponse> getTagsByType(TagType type) {
+        List<TagEntity> tags = tagRepository.findByType(type);
         return tags.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());

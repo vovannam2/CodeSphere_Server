@@ -1,4 +1,4 @@
-package com.hcmute.codesphere_server.model.entity;
+package com.hcmute.codesphere_server.model.entity.embedded;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;

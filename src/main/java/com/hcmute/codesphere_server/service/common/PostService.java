@@ -1,11 +1,13 @@
 package com.hcmute.codesphere_server.service.common;
 
 import com.hcmute.codesphere_server.model.entity.*;
+import com.hcmute.codesphere_server.model.enums.TagType;
 import com.hcmute.codesphere_server.model.payload.request.CreatePostRequest;
 import com.hcmute.codesphere_server.model.payload.request.UpdatePostRequest;
 import com.hcmute.codesphere_server.model.payload.request.VoteRequest;
 import com.hcmute.codesphere_server.model.payload.response.*;
 import com.hcmute.codesphere_server.repository.common.*;
+import com.hcmute.codesphere_server.util.SlugUtils;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -28,12 +30,13 @@ public class PostService {
 
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
+    private final PostViewRepository postViewRepository;
     private final CommentRepository commentRepository;
     private final CommentLikeRepository commentLikeRepository;
     private final UserRepository userRepository;
     private final TagRepository tagRepository;
-    private final CategoryRepository categoryRepository;
     private final NotificationService notificationService;
+    private final FollowRepository followRepository;
 
     @Transactional
     public PostDetailResponse createPost(CreatePostRequest request, Long userId) {
@@ -44,31 +47,62 @@ public class PostService {
                 .author(author)
                 .title(request.getTitle())
                 .content(request.getContent())
+                .imageUrl(request.getImageUrl())
+                .fileUrl(request.getFileUrl())
+                .fileName(request.getFileName())
+                .fileType(request.getFileType())
                 .isAnonymous(request.getIsAnonymous() != null ? request.getIsAnonymous() : false)
                 .isBlocked(false)
                 .isResolved(false)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .tags(new HashSet<>())
-                .categories(new HashSet<>())
                 .build();
 
-        // Thêm tags nếu có
-        if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
-            Set<TagEntity> tags = request.getTagIds().stream()
-                    .map(tagId -> tagRepository.findById(tagId)
-                            .orElseThrow(() -> new RuntimeException("Không tìm thấy tag với ID: " + tagId)))
-                    .collect(Collectors.toSet());
+        // Thêm tags nếu có - tự động tạo tag mới nếu chưa tồn tại
+        if (request.getTagNames() != null && !request.getTagNames().isEmpty()) {
+            Set<TagEntity> tags = new HashSet<>();
+            for (String tagName : request.getTagNames()) {
+                if (tagName == null || tagName.trim().isEmpty()) {
+                    continue;
+                }
+                
+                String trimmedName = tagName.trim();
+                String slug = SlugUtils.generateSlug(trimmedName);
+                
+                if (slug.isEmpty()) {
+                    continue; // Skip invalid tag names
+                }
+                
+                // Tìm tag theo name và type = POST
+                TagEntity tag = tagRepository.findByNameAndType(trimmedName, TagType.POST)
+                        .orElse(null);
+                
+                // Nếu chưa tồn tại, tạo mới
+                if (tag == null) {
+                    // Kiểm tra xem slug đã tồn tại với type = POST chưa
+                    if (tagRepository.existsBySlugAndType(slug, TagType.POST)) {
+                        // Nếu slug đã tồn tại, thêm số vào cuối
+                        int counter = 1;
+                        String uniqueSlug = slug + "-" + counter;
+                        while (tagRepository.existsBySlugAndType(uniqueSlug, TagType.POST)) {
+                            counter++;
+                            uniqueSlug = slug + "-" + counter;
+                        }
+                        slug = uniqueSlug;
+                    }
+                    
+                    tag = TagEntity.builder()
+                            .name(trimmedName)
+                            .slug(slug)
+                            .type(TagType.POST)
+                            .build();
+                    tag = tagRepository.save(tag);
+                }
+                
+                tags.add(tag);
+            }
             post.setTags(tags);
-        }
-
-        // Thêm categories nếu có
-        if (request.getCategoryIds() != null && !request.getCategoryIds().isEmpty()) {
-            Set<CategoryEntity> categories = request.getCategoryIds().stream()
-                    .map(categoryId -> categoryRepository.findById(categoryId)
-                            .orElseThrow(() -> new RuntimeException("Không tìm thấy category với ID: " + categoryId)))
-                    .collect(Collectors.toSet());
-            post.setCategories(categories);
         }
 
         post = postRepository.save(post);
@@ -76,20 +110,47 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
-    public Page<PostResponse> getPosts(Long authorId, String tagSlug, String categorySlug, 
-                                       Boolean isResolved, Long userId, Pageable pageable) {
-        Specification<PostEntity> spec = buildSpecification(authorId, tagSlug, categorySlug, isResolved);
+    public Page<PostResponse> getPosts(Long authorId, String tagSlug, 
+                                       Boolean isResolved, String searchQuery, Boolean followedOnly, Long userId, Pageable pageable) {
+        Specification<PostEntity> spec = buildSpecification(authorId, tagSlug, isResolved, searchQuery, followedOnly, userId);
         Page<PostEntity> posts = postRepository.findAll(spec, pageable);
         
         return posts.map(post -> mapToPostResponse(post, userId));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PostDetailResponse getPostById(Long postId, Long userId) {
         PostEntity post = postRepository.findByIdAndNotBlocked(postId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy bài thảo luận"));
         
+        // Track view nếu user đã đăng nhập
+        if (userId != null) {
+            trackView(postId, userId);
+        }
+        
         return mapToPostDetailResponse(post, userId);
+    }
+    
+    @Transactional
+    public void trackView(Long postId, Long userId) {
+        // Kiểm tra xem user đã xem chưa
+        var existingView = postViewRepository.findByPostIdAndUserId(postId, userId);
+        
+        if (existingView.isEmpty()) {
+            // Tạo view mới
+            PostEntity post = postRepository.findById(postId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy bài thảo luận"));
+            UserEntity user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
+            
+            // Tạo view mới - không dùng builder để tránh lỗi với @EmbeddedId
+            PostViewEntity newView = new PostViewEntity();
+            newView.setViewedAt(Instant.now());
+            // Set post và user - sẽ tự động set id thông qua setter
+            newView.setPost(post);
+            newView.setUser(user);
+            postViewRepository.save(newView);
+        }
     }
 
     @Transactional
@@ -108,23 +169,63 @@ public class PostService {
         if (request.getContent() != null) {
             post.setContent(request.getContent());
         }
-
-        // Cập nhật tags
-        if (request.getTagIds() != null) {
-            Set<TagEntity> tags = request.getTagIds().stream()
-                    .map(tagId -> tagRepository.findById(tagId)
-                            .orElseThrow(() -> new RuntimeException("Không tìm thấy tag với ID: " + tagId)))
-                    .collect(Collectors.toSet());
-            post.setTags(tags);
+        if (request.getImageUrl() != null) {
+            post.setImageUrl(request.getImageUrl());
+        }
+        if (request.getFileUrl() != null) {
+            post.setFileUrl(request.getFileUrl());
+        }
+        if (request.getFileName() != null) {
+            post.setFileName(request.getFileName());
+        }
+        if (request.getFileType() != null) {
+            post.setFileType(request.getFileType());
         }
 
-        // Cập nhật categories
-        if (request.getCategoryIds() != null) {
-            Set<CategoryEntity> categories = request.getCategoryIds().stream()
-                    .map(categoryId -> categoryRepository.findById(categoryId)
-                            .orElseThrow(() -> new RuntimeException("Không tìm thấy category với ID: " + categoryId)))
-                    .collect(Collectors.toSet());
-            post.setCategories(categories);
+        // Cập nhật tags - tự động tạo tag mới nếu chưa tồn tại
+        if (request.getTagNames() != null) {
+            Set<TagEntity> tags = new HashSet<>();
+            for (String tagName : request.getTagNames()) {
+                if (tagName == null || tagName.trim().isEmpty()) {
+                    continue;
+                }
+                
+                String trimmedName = tagName.trim();
+                String slug = SlugUtils.generateSlug(trimmedName);
+                
+                if (slug.isEmpty()) {
+                    continue; // Skip invalid tag names
+                }
+                
+                // Tìm tag theo name và type = POST
+                TagEntity tag = tagRepository.findByNameAndType(trimmedName, TagType.POST)
+                        .orElse(null);
+                
+                // Nếu chưa tồn tại, tạo mới
+                if (tag == null) {
+                    // Kiểm tra xem slug đã tồn tại với type = POST chưa
+                    if (tagRepository.existsBySlugAndType(slug, TagType.POST)) {
+                        // Nếu slug đã tồn tại, thêm số vào cuối
+                        int counter = 1;
+                        String uniqueSlug = slug + "-" + counter;
+                        while (tagRepository.existsBySlugAndType(uniqueSlug, TagType.POST)) {
+                            counter++;
+                            uniqueSlug = slug + "-" + counter;
+                        }
+                        slug = uniqueSlug;
+                    }
+                    
+                    tag = TagEntity.builder()
+                            .name(trimmedName)
+                            .slug(slug)
+                            .type(TagType.POST)
+                            .build();
+                    tag = tagRepository.save(tag);
+                }
+                
+                tags.add(tag);
+            }
+            post.setTags(tags);
         }
 
         post.setUpdatedAt(Instant.now());
@@ -177,13 +278,13 @@ public class PostService {
             }
         } else {
             if (voteValue != 0) {
-                // Tạo vote mới
-                PostLikeEntity newVote = PostLikeEntity.builder()
-                        .post(post)
-                        .user(user)
-                        .vote(voteValue)
-                        .createdAt(Instant.now())
-                        .build();
+                // Tạo vote mới - không dùng builder để tránh lỗi với @EmbeddedId
+                PostLikeEntity newVote = new PostLikeEntity();
+                newVote.setVote(voteValue);
+                newVote.setCreatedAt(Instant.now());
+                // Set post và user - sẽ tự động set id thông qua setter
+                newVote.setPost(post);
+                newVote.setUser(user);
                 postLikeRepository.save(newVote);
             }
         }
@@ -233,8 +334,7 @@ public class PostService {
         return mapToPostDetailResponse(post, userId);
     }
 
-    private Specification<PostEntity> buildSpecification(Long authorId, String tagSlug, 
-                                                         String categorySlug, Boolean isResolved) {
+    private Specification<PostEntity> buildSpecification(Long authorId, String tagSlug, Boolean isResolved, String searchQuery, Boolean followedOnly, Long userId) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             
@@ -245,18 +345,37 @@ public class PostService {
                 predicates.add(cb.equal(root.get("author").get("id"), authorId));
             }
             
+            // Filter theo following nếu followedOnly = true và userId không null
+            if (followedOnly != null && followedOnly && userId != null) {
+                // Lấy danh sách user IDs mà current user đang follow
+                List<FollowEntity> follows = followRepository.findByFollowerId(userId);
+                if (follows.isEmpty()) {
+                    // Nếu không follow ai, trả về empty result
+                    predicates.add(cb.disjunction()); // Always false
+                } else {
+                    List<Long> followedUserIds = follows.stream()
+                            .map(f -> f.getFollowee().getId())
+                            .collect(Collectors.toList());
+                    predicates.add(root.get("author").get("id").in(followedUserIds));
+                }
+            }
+            
             if (tagSlug != null && !tagSlug.isEmpty()) {
                 Join<PostEntity, TagEntity> tagJoin = root.join("tags");
                 predicates.add(cb.equal(tagJoin.get("slug"), tagSlug));
-            }
-            
-            if (categorySlug != null && !categorySlug.isEmpty()) {
-                Join<PostEntity, CategoryEntity> categoryJoin = root.join("categories");
-                predicates.add(cb.equal(categoryJoin.get("slug"), categorySlug));
+                // Chỉ lấy posts có tag với type = POST
+                predicates.add(cb.equal(tagJoin.get("type"), TagType.POST));
             }
             
             if (isResolved != null) {
                 predicates.add(cb.equal(root.get("isResolved"), isResolved));
+            }
+            
+            // Search query - chỉ tìm trong title
+            if (searchQuery != null && !searchQuery.trim().isEmpty()) {
+                String searchPattern = "%" + searchQuery + "%";
+                // MySQL thường case-insensitive với collation mặc định, nên không cần LOWER/UPPER
+                predicates.add(cb.like(root.get("title"), searchPattern));
             }
             
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -267,6 +386,7 @@ public class PostService {
         Long totalVotes = postLikeRepository.getTotalVotesByPostId(entity.getId());
         Long upvotes = postLikeRepository.countUpvotesByPostId(entity.getId());
         Long downvotes = postLikeRepository.countDownvotesByPostId(entity.getId());
+        Long viewCount = postViewRepository.countViewsByPostId(entity.getId());
         Long commentCount = commentRepository.countByPostId(entity.getId());
         
         Integer userVote = null;
@@ -281,6 +401,10 @@ public class PostService {
                 .id(entity.getId())
                 .title(entity.getTitle())
                 .content(entity.getContent())
+                .imageUrl(entity.getImageUrl())
+                .fileUrl(entity.getFileUrl())
+                .fileName(entity.getFileName())
+                .fileType(entity.getFileType())
                 .isAnonymous(entity.getIsAnonymous())
                 .isResolved(entity.getIsResolved())
                 .authorId(entity.getAuthor() != null ? entity.getAuthor().getId() : null)
@@ -290,12 +414,10 @@ public class PostService {
                 .upvotes(upvotes)
                 .downvotes(downvotes)
                 .commentCount(commentCount)
+                .viewCount(viewCount)
                 .userVote(userVote)
                 .tags(entity.getTags().stream()
                         .map(this::mapToTagResponse)
-                        .collect(Collectors.toList()))
-                .categories(entity.getCategories().stream()
-                        .map(this::mapToCategoryResponse)
                         .collect(Collectors.toList()))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
@@ -318,6 +440,10 @@ public class PostService {
                 .id(baseResponse.getId())
                 .title(baseResponse.getTitle())
                 .content(baseResponse.getContent())
+                .imageUrl(baseResponse.getImageUrl())
+                .fileUrl(baseResponse.getFileUrl())
+                .fileName(baseResponse.getFileName())
+                .fileType(baseResponse.getFileType())
                 .isAnonymous(baseResponse.getIsAnonymous())
                 .isResolved(baseResponse.getIsResolved())
                 .authorId(baseResponse.getAuthorId())
@@ -327,9 +453,9 @@ public class PostService {
                 .upvotes(baseResponse.getUpvotes())
                 .downvotes(baseResponse.getDownvotes())
                 .commentCount(baseResponse.getCommentCount())
+                .viewCount(baseResponse.getViewCount())
                 .userVote(baseResponse.getUserVote())
                 .tags(baseResponse.getTags())
-                .categories(baseResponse.getCategories())
                 .comments(comments)
                 .createdAt(baseResponse.getCreatedAt())
                 .updatedAt(baseResponse.getUpdatedAt())
@@ -385,14 +511,5 @@ public class PostService {
                 .build();
     }
 
-    private CategoryResponse mapToCategoryResponse(CategoryEntity entity) {
-        return CategoryResponse.builder()
-                .id(entity.getId())
-                .name(entity.getName())
-                .slug(entity.getSlug())
-                .parentId(entity.getParent() != null ? entity.getParent().getId() : null)
-                .parentName(entity.getParent() != null ? entity.getParent().getName() : null)
-                .build();
-    }
 }
 

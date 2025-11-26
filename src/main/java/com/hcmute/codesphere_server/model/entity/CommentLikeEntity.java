@@ -1,5 +1,6 @@
 package com.hcmute.codesphere_server.model.entity;
 
+import com.hcmute.codesphere_server.model.entity.embedded.CommentLikeKey;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Builder;
@@ -45,31 +46,6 @@ public class CommentLikeEntity {
 	public Integer getVote() { return vote; }
 	public void setVote(Integer vote) { this.vote = vote; }
 	public Instant getCreatedAt() { return createdAt; }
-}
-
-@Embeddable
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-class CommentLikeKey implements java.io.Serializable {
-	@Column(name = "comment_id")
-	private Long commentId;
-	@Column(name = "user_id")
-	private Long userId;
-	public Long getCommentId() { return commentId; }
-	public void setCommentId(Long commentId) { this.commentId = commentId; }
-	public Long getUserId() { return userId; }
-	public void setUserId(Long userId) { this.userId = userId; }
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		CommentLikeKey that = (CommentLikeKey) o;
-		return java.util.Objects.equals(commentId, that.commentId) &&
-				java.util.Objects.equals(userId, that.userId);
-	}
-	@Override
-	public int hashCode() { return java.util.Objects.hash(commentId, userId); }
 }
 
 

@@ -18,6 +18,10 @@ public class PostDetailResponse {
     private Long id;
     private String title;
     private String content;
+    private String imageUrl;
+    private String fileUrl;
+    private String fileName;
+    private String fileType;
     private Boolean isAnonymous;
     private Boolean isResolved;
     private Long authorId;
@@ -27,9 +31,9 @@ public class PostDetailResponse {
     private Long upvotes;
     private Long downvotes;
     private Long commentCount;
+    private Long viewCount;
     private Integer userVote;
     private List<TagResponse> tags;
-    private List<CategoryResponse> categories;
     private List<CommentResponse> comments;
     private Instant createdAt;
     private Instant updatedAt;

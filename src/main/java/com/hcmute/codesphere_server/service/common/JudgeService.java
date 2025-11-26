@@ -1,6 +1,7 @@
 package com.hcmute.codesphere_server.service.common;
 
 import com.hcmute.codesphere_server.model.entity.*;
+import com.hcmute.codesphere_server.model.entity.embedded.SubmissionTestcaseKey;
 import com.hcmute.codesphere_server.repository.common.*;
 import com.hcmute.codesphere_server.service.common.DockerExecutionHelper.ExecutionResult;
 import lombok.Data;

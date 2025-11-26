@@ -1,5 +1,6 @@
 package com.hcmute.codesphere_server.model.entity;
 
+import com.hcmute.codesphere_server.model.entity.embedded.FollowKey;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Builder;
@@ -35,32 +36,44 @@ public class FollowEntity {
 	@lombok.Builder.Default
 	private Instant createdAt = Instant.now();
 
-}
-
-@Embeddable
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-class FollowKey implements java.io.Serializable {
-	@Column(name = "follower_id")
-	private Long followerId;
-	@Column(name = "followee_id")
-	private Long followeeId;
-	public Long getFollowerId() { return followerId; }
-	public void setFollowerId(Long followerId) { this.followerId = followerId; }
-	public Long getFolloweeId() { return followeeId; }
-	public void setFolloweeId(Long followeeId) { this.followeeId = followeeId; }
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		FollowKey that = (FollowKey) o;
-		return java.util.Objects.equals(followerId, that.followerId) &&
-				java.util.Objects.equals(followeeId, that.followeeId);
+	// Helper methods to ensure ID is set correctly
+	public FollowKey getId() {
+		if (id == null) {
+			id = new FollowKey();
+		}
+		return id;
 	}
-	@Override
-	public int hashCode() {
-		return java.util.Objects.hash(followerId, followeeId);
+	
+	public void setId(FollowKey id) {
+		this.id = id;
+	}
+	
+	public UserEntity getFollower() {
+		return follower;
+	}
+	
+	public void setFollower(UserEntity follower) {
+		this.follower = follower;
+		if (follower != null) {
+			if (id == null) {
+				id = new FollowKey();
+			}
+			id.setFollowerId(follower.getId());
+		}
+	}
+	
+	public UserEntity getFollowee() {
+		return followee;
+	}
+	
+	public void setFollowee(UserEntity followee) {
+		this.followee = followee;
+		if (followee != null) {
+			if (id == null) {
+				id = new FollowKey();
+			}
+			id.setFolloweeId(followee.getId());
+		}
 	}
 }
 

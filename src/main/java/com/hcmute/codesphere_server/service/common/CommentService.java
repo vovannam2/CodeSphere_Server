@@ -3,6 +3,7 @@ package com.hcmute.codesphere_server.service.common;
 import com.hcmute.codesphere_server.model.entity.CommentEntity;
 import com.hcmute.codesphere_server.model.entity.CommentLikeEntity;
 import com.hcmute.codesphere_server.model.entity.PostEntity;
+import com.hcmute.codesphere_server.model.entity.ProblemEntity;
 import com.hcmute.codesphere_server.model.entity.UserEntity;
 import com.hcmute.codesphere_server.model.payload.request.CreateCommentRequest;
 import com.hcmute.codesphere_server.model.payload.request.UpdateCommentRequest;
@@ -27,6 +28,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final CommentLikeRepository commentLikeRepository;
     private final PostRepository postRepository;
+    private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
@@ -97,6 +99,45 @@ public class CommentService {
         return comments.map(comment -> mapToCommentResponse(comment, userId));
     }
 
+    // Methods for Problem comments
+    @Transactional
+    public CommentResponse createCommentForProblem(Long problemId, CreateCommentRequest request, Long userId) {
+        ProblemEntity problem = problemRepository.findByIdAndStatusTrue(problemId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy bài tập"));
+
+        UserEntity author = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
+
+        CommentEntity comment = CommentEntity.builder()
+                .author(author)
+                .problem(problem)
+                .content(request.getContent())
+                .isAccepted(false)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        // Nếu là reply
+        if (request.getParentCommentId() != null) {
+            CommentEntity parent = commentRepository.findById(request.getParentCommentId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy comment cha"));
+            comment.setParent(parent);
+        }
+
+        comment = commentRepository.save(comment);
+        return mapToCommentResponse(comment, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CommentResponse> getCommentsByProblem(Long problemId, Long userId, Pageable pageable) {
+        // Kiểm tra problem tồn tại
+        problemRepository.findByIdAndStatusTrue(problemId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy bài tập"));
+
+        Page<CommentEntity> comments = commentRepository.findTopLevelCommentsByProblemId(problemId, pageable);
+        return comments.map(comment -> mapToCommentResponse(comment, userId));
+    }
+
     @Transactional
     public CommentResponse replyToComment(Long commentId, CreateCommentRequest request, Long userId) {
         CommentEntity parent = commentRepository.findById(commentId)
@@ -108,6 +149,7 @@ public class CommentService {
         CommentEntity reply = CommentEntity.builder()
                 .author(author)
                 .post(parent.getPost())
+                .problem(parent.getProblem())
                 .parent(parent)
                 .content(request.getContent())
                 .isAccepted(false)
@@ -120,13 +162,18 @@ public class CommentService {
         // Gửi notification cho parent comment author
         try {
             if (!parent.getAuthor().getId().equals(userId)) {
-                notificationService.notifyCommentReply(
-                        parent.getAuthor().getId(),
-                        userId,
-                        author.getUsername(),
-                        parent.getPost().getId(),
-                        parent.getId()
-                );
+                Long postId = parent.getPost() != null ? parent.getPost().getId() : null;
+                Long problemId = parent.getProblem() != null ? parent.getProblem().getId() : null;
+                // Note: Notification service có thể cần update để hỗ trợ problems
+                if (postId != null) {
+                    notificationService.notifyCommentReply(
+                            parent.getAuthor().getId(),
+                            userId,
+                            author.getUsername(),
+                            postId,
+                            parent.getId()
+                    );
+                }
             }
         } catch (Exception e) {
             // Log error nhưng không throw
@@ -213,7 +260,30 @@ public class CommentService {
             throw new RuntimeException("Bạn không có quyền xóa comment này");
         }
 
+        // Xóa tất cả replies trước (cascade delete)
+        List<CommentEntity> replies = commentRepository.findRepliesByParentId(commentId);
+        for (CommentEntity reply : replies) {
+            // Xóa đệ quy tất cả replies của reply này
+            deleteCommentRecursive(reply.getId());
+        }
+        
+        // Xóa comment chính
         commentRepository.delete(comment);
+    }
+    
+    @Transactional
+    private void deleteCommentRecursive(Long commentId) {
+        // Xóa tất cả replies trước
+        List<CommentEntity> replies = commentRepository.findRepliesByParentId(commentId);
+        for (CommentEntity reply : replies) {
+            deleteCommentRecursive(reply.getId());
+        }
+        // Xóa comment
+        CommentEntity comment = commentRepository.findById(commentId)
+                .orElse(null);
+        if (comment != null) {
+            commentRepository.delete(comment);
+        }
     }
 
     private CommentResponse mapToCommentResponse(CommentEntity entity, Long userId) {

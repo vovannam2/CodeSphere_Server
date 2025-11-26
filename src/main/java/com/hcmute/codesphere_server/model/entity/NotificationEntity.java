@@ -29,7 +29,7 @@ public class NotificationEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user; // Người nhận notification
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 50, columnDefinition = "VARCHAR(50) NOT NULL")
     @Enumerated(EnumType.STRING)
     private NotificationType type;
 
@@ -56,6 +56,7 @@ public class NotificationEntity {
     private Instant createdAt = Instant.now();
 
     public enum NotificationType {
+        FOLLOW,
         FRIEND_REQUEST,
         FRIEND_ACCEPTED,
         POST_LIKE,

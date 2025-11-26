@@ -3,8 +3,10 @@ package com.hcmute.codesphere_server.service.common;
 import com.hcmute.codesphere_server.model.entity.ConversationEntity;
 import com.hcmute.codesphere_server.model.entity.MessageEntity;
 import com.hcmute.codesphere_server.model.entity.UserEntity;
+import com.hcmute.codesphere_server.model.enums.MessageType;
 import com.hcmute.codesphere_server.model.payload.request.SendMessageRequest;
 import com.hcmute.codesphere_server.model.payload.response.MessageResponse;
+import com.hcmute.codesphere_server.repository.common.ConversationParticipantRepository;
 import com.hcmute.codesphere_server.repository.common.ConversationRepository;
 import com.hcmute.codesphere_server.repository.common.MessageRepository;
 import com.hcmute.codesphere_server.repository.common.UserRepository;
@@ -22,6 +24,7 @@ public class MessageService {
 
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
+    private final ConversationParticipantRepository conversationParticipantRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
@@ -33,21 +36,25 @@ public class MessageService {
         UserEntity sender = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
 
-        MessageEntity.MessageType messageType;
+        MessageType messageType;
         try {
-            messageType = MessageEntity.MessageType.valueOf(request.getMessageType().toUpperCase());
+            messageType = MessageType.valueOf(request.getMessageType().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("MessageType không hợp lệ. Phải là TEXT hoặc IMAGE");
+            throw new RuntimeException("MessageType không hợp lệ. Phải là TEXT, IMAGE hoặc FILE");
         }
 
         // Validate
-        if (messageType == MessageEntity.MessageType.TEXT) {
+        if (messageType == MessageType.TEXT) {
             if (request.getContent() == null || request.getContent().isEmpty()) {
                 throw new RuntimeException("TEXT message cần có content");
             }
-        } else if (messageType == MessageEntity.MessageType.IMAGE) {
+        } else if (messageType == MessageType.IMAGE) {
             if (request.getImageUrl() == null || request.getImageUrl().isEmpty()) {
                 throw new RuntimeException("IMAGE message cần có imageUrl");
+            }
+        } else if (messageType == MessageType.FILE) {
+            if (request.getFileUrl() == null || request.getFileUrl().isEmpty()) {
+                throw new RuntimeException("FILE message cần có fileUrl");
             }
         }
 
@@ -57,6 +64,9 @@ public class MessageService {
                 .content(request.getContent())
                 .messageType(messageType)
                 .imageUrl(request.getImageUrl())
+                .fileUrl(request.getFileUrl())
+                .fileName(request.getFileName())
+                .fileType(request.getFileType())
                 .isDeleted(false)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
@@ -70,10 +80,11 @@ public class MessageService {
 
         // Gửi notification cho tất cả participants (trừ sender)
         try {
-            for (com.hcmute.codesphere_server.model.entity.UserEntity participant : conversation.getParticipants()) {
-                if (!participant.getId().equals(userId)) {
+            var participants = conversationParticipantRepository.findByConversationId(conversationId);
+            for (var participant : participants) {
+                if (participant.getUser() != null && !participant.getUser().getId().equals(userId)) {
                     notificationService.notifyMessage(
-                            participant.getId(),
+                            participant.getUser().getId(),
                             userId,
                             sender.getUsername(),
                             conversationId
@@ -128,6 +139,9 @@ public class MessageService {
                 .content(entity.getContent())
                 .messageType(entity.getMessageType() != null ? entity.getMessageType().name() : null)
                 .imageUrl(entity.getImageUrl())
+                .fileUrl(entity.getFileUrl())
+                .fileName(entity.getFileName())
+                .fileType(entity.getFileType())
                 .isDeleted(entity.getIsDeleted())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())

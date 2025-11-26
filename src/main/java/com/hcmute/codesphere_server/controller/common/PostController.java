@@ -55,8 +55,9 @@ public class PostController {
     public ResponseEntity<DataResponse<Page<PostResponse>>> getPosts(
             @RequestParam(required = false) Long authorId,
             @RequestParam(required = false) String tag,
-            @RequestParam(required = false) String category,
             @RequestParam(required = false) Boolean isResolved,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean followedOnly,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -80,7 +81,7 @@ public class PostController {
                 }
             }
             
-            Page<PostResponse> posts = postService.getPosts(authorId, tag, category, isResolved, userId, pageable);
+            Page<PostResponse> posts = postService.getPosts(authorId, tag, isResolved, search, followedOnly, userId, pageable);
             return ResponseEntity.ok(DataResponse.success(posts));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()

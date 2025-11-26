@@ -35,6 +35,18 @@ public class PostEntity {
 	@Column(nullable = false)
 	private String content;
 
+	@Column(length = 500)
+	private String imageUrl; // URL hình ảnh đính kèm
+
+	@Column(length = 500)
+	private String fileUrl; // URL file đính kèm
+
+	@Column(length = 100)
+	private String fileName; // Tên file gốc
+
+	@Column(length = 50)
+	private String fileType; // Loại file (pdf, doc, etc.)
+
 	@Column(nullable = false)
 	private Boolean isAnonymous = false;
 
@@ -55,12 +67,6 @@ public class PostEntity {
 			joinColumns = @JoinColumn(name = "post_id"),
 			inverseJoinColumns = @JoinColumn(name = "tag_id"))
 	private Set<TagEntity> tags = new HashSet<>();
-
-	@ManyToMany
-	@JoinTable(name = "post_categories",
-			joinColumns = @JoinColumn(name = "post_id"),
-			inverseJoinColumns = @JoinColumn(name = "category_id"))
-	private Set<CategoryEntity> categories = new HashSet<>();
 
 	@PreUpdate
 	public void touchUpdatedAt() { this.updatedAt = Instant.now(); }
@@ -83,8 +89,6 @@ public class PostEntity {
 	public Instant getUpdatedAt() { return updatedAt; }
 	public Set<TagEntity> getTags() { return tags; }
 	public void setTags(Set<TagEntity> tags) { this.tags = tags; }
-	public Set<CategoryEntity> getCategories() { return categories; }
-	public void setCategories(Set<CategoryEntity> categories) { this.categories = categories; }
 }
 
 

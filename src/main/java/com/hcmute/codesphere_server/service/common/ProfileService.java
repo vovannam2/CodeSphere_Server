@@ -6,6 +6,7 @@ import com.hcmute.codesphere_server.model.payload.request.UpdateProfileRequest;
 import com.hcmute.codesphere_server.model.payload.response.PostResponse;
 import com.hcmute.codesphere_server.model.payload.response.UserProfileResponse;
 import com.hcmute.codesphere_server.model.payload.response.UserPublicProfileResponse;
+import com.hcmute.codesphere_server.model.payload.response.UserSearchResponse;
 import com.hcmute.codesphere_server.repository.common.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,8 +23,7 @@ public class ProfileService {
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
     private final PostRepository postRepository;
-    private final FriendRequestRepository friendRequestRepository;
-    private final FriendService friendService;
+    private final FollowService followService;
     private final PostService postService;
 
     @Transactional(readOnly = true)
@@ -120,14 +120,15 @@ public class ProfileService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
 
         Long postCount = postRepository.countByAuthorId(userId);
-        
-        // Đếm số bạn bè
-        Long friendCount = (long) friendRequestRepository.findAcceptedRequestsByUserId(userId).size();
 
-        // Kiểm tra có phải bạn bè không
-        Boolean isFriend = null;
+        // Đếm số followers và following
+        Long followerCount = followService.getFollowerCount(userId);
+        Long followingCount = followService.getFollowingCount(userId);
+
+        // Kiểm tra có đang follow không
+        Boolean isFollowing = null;
         if (currentUserId != null && !currentUserId.equals(userId)) {
-            isFriend = friendService.checkFriendship(userId, currentUserId);
+            isFollowing = followService.checkFollowing(currentUserId, userId);
         }
 
         return UserPublicProfileResponse.builder()
@@ -138,15 +139,26 @@ public class ProfileService {
                 .gender(user.getGender())
                 .lastOnline(user.getLastOnline())
                 .postCount(postCount)
-                .friendCount(friendCount)
-                .isFriend(isFriend)
+                .isFollowing(isFollowing)
+                .followerCount(followerCount)
+                .followingCount(followingCount)
                 .createdAt(user.getCreatedAt())
                 .build();
     }
 
     @Transactional(readOnly = true)
     public Page<PostResponse> getUserPosts(Long userId, Long currentUserId, Pageable pageable) {
-        return postService.getPosts(userId, null, null, null, currentUserId, pageable);
+        return postService.getPosts(userId, null, null, null, null, currentUserId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<UserSearchResponse> searchUsers(String query, Long currentUserId, Pageable pageable) {
+        Page<UserEntity> users = userRepository.searchUsers(query, pageable);
+        return users.map(user -> UserSearchResponse.builder()
+                .userId(user.getId())
+                .username(user.getUsername())
+                .avatar(user.getAvatar())
+                .build());
     }
 }
 

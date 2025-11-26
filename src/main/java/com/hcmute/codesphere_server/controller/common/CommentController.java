@@ -187,5 +187,66 @@ public class CommentController {
                     .body(DataResponse.error("Lỗi server: " + e.getMessage()));
         }
     }
+
+    // Endpoints for Problem comments
+    @PostMapping("/problems/{problemId}/comments")
+    public ResponseEntity<DataResponse<CommentResponse>> createProblemComment(
+            @PathVariable Long problemId,
+            @Valid @RequestBody CreateCommentRequest request,
+            Authentication authentication) {
+        
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401)
+                    .body(DataResponse.error("Unauthorized - Token không hợp lệ hoặc thiếu"));
+        }
+
+        try {
+            UserPrinciple userPrinciple = (UserPrinciple) authentication.getPrincipal();
+            Long userId = Long.parseLong(userPrinciple.getUserId());
+            
+            CommentResponse comment = commentService.createCommentForProblem(problemId, request, userId);
+            return ResponseEntity.ok(DataResponse.success(comment));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(DataResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(DataResponse.error("Lỗi server: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/problems/{problemId}/comments")
+    public ResponseEntity<DataResponse<Page<CommentResponse>>> getProblemComments(
+            @PathVariable Long problemId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir,
+            Authentication authentication) {
+        
+        try {
+            Sort sort = sortDir.equalsIgnoreCase("ASC") 
+                    ? Sort.by(sortBy).ascending() 
+                    : Sort.by(sortBy).descending();
+            
+            Pageable pageable = PageRequest.of(page, size, sort);
+            
+            Long userId = null;
+            if (authentication != null && authentication.isAuthenticated()) {
+                try {
+                    UserPrinciple userPrinciple = (UserPrinciple) authentication.getPrincipal();
+                    userId = Long.parseLong(userPrinciple.getUserId());
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+            
+            Page<CommentResponse> comments = commentService.getCommentsByProblem(problemId, userId, pageable);
+            return ResponseEntity.ok(DataResponse.success(comments));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(DataResponse.error(e.getMessage()));
+        }
+    }
 }
 

@@ -28,5 +28,15 @@ public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
     
     @Query("SELECT c FROM CommentEntity c WHERE c.post.id = :postId")
     List<CommentEntity> findAllByPostId(@Param("postId") Long postId);
+    
+    // Methods for Problem comments
+    @Query("SELECT c FROM CommentEntity c WHERE c.problem.id = :problemId AND c.parent IS NULL ORDER BY c.createdAt ASC")
+    Page<CommentEntity> findTopLevelCommentsByProblemId(@Param("problemId") Long problemId, Pageable pageable);
+    
+    @Query("SELECT COUNT(c) FROM CommentEntity c WHERE c.problem.id = :problemId")
+    Long countByProblemId(@Param("problemId") Long problemId);
+    
+    @Query("SELECT c FROM CommentEntity c WHERE c.problem.id = :problemId")
+    List<CommentEntity> findAllByProblemId(@Param("problemId") Long problemId);
 }
 

@@ -1,5 +1,6 @@
-package com.hcmute.codesphere_server.model.entity;
+package com.hcmute.codesphere_server.model.validator;
 
+import com.hcmute.codesphere_server.model.entity.CommentEntity;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 
@@ -18,3 +19,4 @@ public class CommentValidator {
         }
     }
 }
+

@@ -7,8 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Set;
 
 @Entity
 @Table(name = "conversations", indexes = {
@@ -39,11 +37,9 @@ public class ConversationEntity {
     @JoinColumn(name = "created_by", nullable = false)
     private UserEntity createdBy;
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "conversation_participants",
-            joinColumns = @JoinColumn(name = "conversation_id"),
-            inverseJoinColumns = @JoinColumn(name = "user_id"))
-    private Set<UserEntity> participants = new HashSet<>();
+    // Removed @ManyToMany - use ConversationParticipantEntity instead
+    // This prevents Hibernate from auto-inserting into conversation_participants
+    // without joined_at and role fields
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();

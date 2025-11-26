@@ -11,10 +11,16 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SendMessageRequest {
     
-    private String content; // Required cho TEXT, null cho IMAGE
+    private String content; // Required cho TEXT, null cho IMAGE/FILE
     
-    private String messageType; // TEXT hoặc IMAGE
+    private String messageType; // TEXT, IMAGE, hoặc FILE
     
     private String imageUrl; // Required cho IMAGE
+    
+    private String fileUrl; // Required cho FILE
+    
+    private String fileName; // Tên file gốc
+    
+    private String fileType; // Loại file (pdf, doc, etc.)
 }
 

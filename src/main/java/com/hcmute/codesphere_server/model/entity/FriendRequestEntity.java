@@ -1,5 +1,6 @@
 package com.hcmute.codesphere_server.model.entity;
 
+import com.hcmute.codesphere_server.model.enums.FriendRequestStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -47,12 +48,6 @@ public class FriendRequestEntity {
     @PreUpdate
     public void touchUpdatedAt() {
         this.updatedAt = Instant.now();
-    }
-
-    public enum FriendRequestStatus {
-        PENDING,
-        ACCEPTED,
-        REJECTED
     }
 }
 

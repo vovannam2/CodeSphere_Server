@@ -124,7 +124,8 @@ public class SecurityConfig {
                         "/oauth2-redirect.html",
                         "/error",
                         "/static/**",
-                        "/*.html"
+                        "/*.html",
+                        "/ws/**"                     // WebSocket endpoint - authentication handled in interceptor
                 ).permitAll()
                 // Admin endpoints - cần token và quyền admin (được check trong Controller)
                 // /api/v1/admin/languages (POST) - tạo language

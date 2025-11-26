@@ -32,6 +32,7 @@ public class ProblemController {
             @RequestParam(required = false) String language,
             @RequestParam(required = false) String bookmarkStatus, // "bookmarked", "not_bookmarked", "all"
             @RequestParam(required = false) String status, // "NOT_ATTEMPTED", "ATTEMPTED_NOT_COMPLETED", "COMPLETED", "all"
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -67,7 +68,7 @@ public class ProblemController {
             
             Page<ProblemResponse> problems = problemService.getProblems(
                     level, category, tag, language, 
-                    bookmarkStatus, status, userId, 
+                    bookmarkStatus, status, search, userId, 
                     pageable);
             
             return ResponseEntity.ok(DataResponse.success(problems));

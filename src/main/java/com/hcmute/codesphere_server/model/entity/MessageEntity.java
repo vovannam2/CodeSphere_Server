@@ -1,5 +1,6 @@
 package com.hcmute.codesphere_server.model.entity;
 
+import com.hcmute.codesphere_server.model.enums.MessageType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,6 +44,15 @@ public class MessageEntity {
     @Column(length = 500)
     private String imageUrl; // Cho IMAGE type
 
+    @Column(length = 500)
+    private String fileUrl; // Cho FILE type
+
+    @Column(length = 100)
+    private String fileName; // Tên file gốc
+
+    @Column(length = 50)
+    private String fileType; // Loại file (pdf, doc, etc.)
+
     @Column(nullable = false)
     private Boolean isDeleted = false;
 
@@ -57,11 +67,6 @@ public class MessageEntity {
     @PreUpdate
     public void touchUpdatedAt() {
         this.updatedAt = Instant.now();
-    }
-
-    public enum MessageType {
-        TEXT,
-        IMAGE
     }
 }
 

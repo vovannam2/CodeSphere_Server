@@ -22,10 +22,16 @@ public class CreatePostRequest {
     @NotBlank(message = "Nội dung không được để trống")
     private String content;
     
+    private String imageUrl; // URL hình ảnh đính kèm
+    
+    private String fileUrl; // URL file đính kèm
+    
+    private String fileName; // Tên file gốc
+    
+    private String fileType; // Loại file (pdf, doc, etc.)
+    
     private Boolean isAnonymous = false;
     
-    private List<Long> tagIds;
-    
-    private List<Long> categoryIds;
+    private List<String> tagNames; // Tên các tag (có thể tạo tag mới)
 }
 

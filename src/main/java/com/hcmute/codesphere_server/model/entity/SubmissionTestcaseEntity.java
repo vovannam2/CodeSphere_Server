@@ -1,5 +1,6 @@
 package com.hcmute.codesphere_server.model.entity;
 
+import com.hcmute.codesphere_server.model.entity.embedded.SubmissionTestcaseKey;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Builder;

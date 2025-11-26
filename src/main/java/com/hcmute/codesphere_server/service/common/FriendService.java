@@ -2,6 +2,7 @@ package com.hcmute.codesphere_server.service.common;
 
 import com.hcmute.codesphere_server.model.entity.FriendRequestEntity;
 import com.hcmute.codesphere_server.model.entity.UserEntity;
+import com.hcmute.codesphere_server.model.enums.FriendRequestStatus;
 import com.hcmute.codesphere_server.model.payload.request.SendFriendRequestRequest;
 import com.hcmute.codesphere_server.model.payload.response.FriendRequestResponse;
 import com.hcmute.codesphere_server.model.payload.response.FriendResponse;
@@ -39,9 +40,9 @@ public class FriendService {
         var existingRequest = friendRequestRepository.findBySenderIdAndReceiverId(senderId, request.getReceiverId());
         if (existingRequest.isPresent()) {
             FriendRequestEntity requestEntity = existingRequest.get();
-            if (requestEntity.getStatus() == FriendRequestEntity.FriendRequestStatus.PENDING) {
+            if (requestEntity.getStatus() == FriendRequestStatus.PENDING) {
                 throw new RuntimeException("Đã gửi lời mời kết bạn rồi");
-            } else if (requestEntity.getStatus() == FriendRequestEntity.FriendRequestStatus.ACCEPTED) {
+            } else if (requestEntity.getStatus() == FriendRequestStatus.ACCEPTED) {
                 throw new RuntimeException("Đã là bạn bè rồi");
             }
         }
@@ -50,9 +51,9 @@ public class FriendService {
         var reverseRequest = friendRequestRepository.findBySenderIdAndReceiverId(request.getReceiverId(), senderId);
         if (reverseRequest.isPresent()) {
             FriendRequestEntity reverseEntity = reverseRequest.get();
-            if (reverseEntity.getStatus() == FriendRequestEntity.FriendRequestStatus.PENDING) {
+            if (reverseEntity.getStatus() == FriendRequestStatus.PENDING) {
                 // Nếu có request ngược lại đang pending, tự động accept
-                reverseEntity.setStatus(FriendRequestEntity.FriendRequestStatus.ACCEPTED);
+                reverseEntity.setStatus(FriendRequestStatus.ACCEPTED);
                 reverseEntity.setUpdatedAt(Instant.now());
                 friendRequestRepository.save(reverseEntity);
                 
@@ -60,13 +61,13 @@ public class FriendService {
                 FriendRequestEntity newRequest = FriendRequestEntity.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .status(FriendRequestEntity.FriendRequestStatus.ACCEPTED)
+                        .status(FriendRequestStatus.ACCEPTED)
                         .createdAt(Instant.now())
                         .updatedAt(Instant.now())
                         .build();
                 newRequest = friendRequestRepository.save(newRequest);
                 return mapToFriendRequestResponse(newRequest);
-            } else if (reverseEntity.getStatus() == FriendRequestEntity.FriendRequestStatus.ACCEPTED) {
+            } else if (reverseEntity.getStatus() == FriendRequestStatus.ACCEPTED) {
                 throw new RuntimeException("Đã là bạn bè rồi");
             }
         }
@@ -75,7 +76,7 @@ public class FriendService {
         FriendRequestEntity friendRequest = FriendRequestEntity.builder()
                 .sender(sender)
                 .receiver(receiver)
-                .status(FriendRequestEntity.FriendRequestStatus.PENDING)
+                .status(FriendRequestStatus.PENDING)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
@@ -106,11 +107,11 @@ public class FriendService {
             throw new RuntimeException("Bạn không có quyền chấp nhận lời mời này");
         }
 
-        if (request.getStatus() != FriendRequestEntity.FriendRequestStatus.PENDING) {
+        if (request.getStatus() != FriendRequestStatus.PENDING) {
             throw new RuntimeException("Lời mời này không còn ở trạng thái PENDING");
         }
 
-        request.setStatus(FriendRequestEntity.FriendRequestStatus.ACCEPTED);
+        request.setStatus(FriendRequestStatus.ACCEPTED);
         request.setUpdatedAt(Instant.now());
         request = friendRequestRepository.save(request);
 
@@ -123,7 +124,7 @@ public class FriendService {
             FriendRequestEntity newReverseRequest = FriendRequestEntity.builder()
                     .sender(request.getReceiver())
                     .receiver(request.getSender())
-                    .status(FriendRequestEntity.FriendRequestStatus.ACCEPTED)
+                    .status(FriendRequestStatus.ACCEPTED)
                     .createdAt(Instant.now())
                     .updatedAt(Instant.now())
                     .build();
@@ -154,11 +155,11 @@ public class FriendService {
             throw new RuntimeException("Bạn không có quyền từ chối lời mời này");
         }
 
-        if (request.getStatus() != FriendRequestEntity.FriendRequestStatus.PENDING) {
+        if (request.getStatus() != FriendRequestStatus.PENDING) {
             throw new RuntimeException("Lời mời này không còn ở trạng thái PENDING");
         }
 
-        request.setStatus(FriendRequestEntity.FriendRequestStatus.REJECTED);
+        request.setStatus(FriendRequestStatus.REJECTED);
         request.setUpdatedAt(Instant.now());
         request = friendRequestRepository.save(request);
 
@@ -175,7 +176,7 @@ public class FriendService {
             throw new RuntimeException("Bạn không có quyền hủy lời mời này");
         }
 
-        if (request.getStatus() != FriendRequestEntity.FriendRequestStatus.PENDING) {
+        if (request.getStatus() != FriendRequestStatus.PENDING) {
             throw new RuntimeException("Chỉ có thể hủy lời mời đang ở trạng thái PENDING");
         }
 
@@ -234,14 +235,14 @@ public class FriendService {
 
         if (request1.isPresent()) {
             FriendRequestEntity req = request1.get();
-            if (req.getStatus() == FriendRequestEntity.FriendRequestStatus.ACCEPTED) {
+            if (req.getStatus() == FriendRequestStatus.ACCEPTED) {
                 friendRequestRepository.delete(req);
             }
         }
 
         if (request2.isPresent()) {
             FriendRequestEntity req = request2.get();
-            if (req.getStatus() == FriendRequestEntity.FriendRequestStatus.ACCEPTED) {
+            if (req.getStatus() == FriendRequestStatus.ACCEPTED) {
                 friendRequestRepository.delete(req);
             }
         }
@@ -252,8 +253,8 @@ public class FriendService {
         var request1 = friendRequestRepository.findBySenderIdAndReceiverId(userId1, userId2);
         var request2 = friendRequestRepository.findBySenderIdAndReceiverId(userId2, userId1);
         
-        return (request1.isPresent() && request1.get().getStatus() == FriendRequestEntity.FriendRequestStatus.ACCEPTED) ||
-               (request2.isPresent() && request2.get().getStatus() == FriendRequestEntity.FriendRequestStatus.ACCEPTED);
+        return (request1.isPresent() && request1.get().getStatus() == FriendRequestStatus.ACCEPTED) ||
+               (request2.isPresent() && request2.get().getStatus() == FriendRequestStatus.ACCEPTED);
     }
 
     private FriendRequestResponse mapToFriendRequestResponse(FriendRequestEntity entity) {

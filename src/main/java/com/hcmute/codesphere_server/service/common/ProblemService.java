@@ -33,12 +33,13 @@ public class ProblemService {
             String languageCode,
             String bookmarkStatus, // "bookmarked", "not_bookmarked", "all" hoặc null
             String status, // "NOT_ATTEMPTED", "ATTEMPTED_NOT_COMPLETED", "COMPLETED", "all" hoặc null
+            String searchQuery,
             Long userId, // User ID để filter và set trạng thái
             Pageable pageable) {
         
         Specification<ProblemEntity> spec = buildSpecification(
                 level, categorySlug, tagSlug, languageCode, 
-                bookmarkStatus, status, userId);
+                bookmarkStatus, status, searchQuery, userId);
         
         Page<ProblemEntity> problems = problemRepository.findAll(spec, pageable);
         
@@ -162,6 +163,7 @@ public class ProblemService {
             String languageCode,
             String bookmarkStatus,
             String status,
+            String searchQuery,
             Long userId) {
         
         return (root, query, cb) -> {
@@ -185,6 +187,13 @@ public class ProblemService {
             if (tagSlug != null && !tagSlug.isEmpty()) {
                 Join<ProblemEntity, TagEntity> tagJoin = root.join("tags");
                 predicates.add(cb.equal(tagJoin.get("slug"), tagSlug));
+            }
+            
+            // Search query - chỉ tìm trong title
+            if (searchQuery != null && !searchQuery.trim().isEmpty()) {
+                String searchPattern = "%" + searchQuery + "%";
+                // MySQL thường case-insensitive với collation mặc định, nên không cần LOWER/UPPER
+                predicates.add(cb.like(root.get("title"), searchPattern));
             }
             
             // Filter theo language

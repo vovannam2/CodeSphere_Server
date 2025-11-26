@@ -46,12 +46,20 @@ public class NotificationService {
         notification = notificationRepository.save(notification);
 
         // Gửi notification real-time qua WebSocket
-        NotificationResponse response = mapToNotificationResponse(notification);
-        messagingTemplate.convertAndSendToUser(
-                userId.toString(),
-                "/queue/notifications",
-                response
-        );
+        try {
+            NotificationResponse response = mapToNotificationResponse(notification);
+            String destination = "/user/" + userId.toString() + "/queue/notifications";
+            messagingTemplate.convertAndSendToUser(
+                    userId.toString(),
+                    "/queue/notifications",
+                    response
+            );
+            System.out.println("Notification sent via WebSocket to user: " + userId + ", destination: " + destination);
+        } catch (Exception e) {
+            // Log error nhưng vẫn trả về notification đã lưu
+            System.err.println("Error sending notification via WebSocket to user: " + userId);
+            e.printStackTrace();
+        }
 
         return notification;
     }
@@ -188,6 +196,17 @@ public class NotificationService {
                 senderName + " đã gửi tin nhắn",
                 senderId,
                 null, null, conversationId
+        );
+    }
+
+    public void notifyFollow(Long followeeId, Long followerId, String followerName) {
+        createNotification(
+                followeeId,
+                NotificationEntity.NotificationType.FOLLOW,
+                "Người dùng mới theo dõi",
+                followerName + " đã theo dõi bạn",
+                followerId,
+                null, null, null
         );
     }
 

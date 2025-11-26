@@ -3,6 +3,7 @@ package com.hcmute.codesphere_server.service.common;
 import com.hcmute.codesphere_server.model.entity.ConversationEntity;
 import com.hcmute.codesphere_server.model.entity.ConversationParticipantEntity;
 import com.hcmute.codesphere_server.model.entity.UserEntity;
+import com.hcmute.codesphere_server.model.enums.ParticipantRole;
 import com.hcmute.codesphere_server.model.payload.request.AddMemberRequest;
 import com.hcmute.codesphere_server.model.payload.request.CreateConversationRequest;
 import com.hcmute.codesphere_server.model.payload.request.UpdateConversationRequest;
@@ -18,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -73,36 +73,36 @@ public class ConversationService {
                 .name(request.getName())
                 .avatar(request.getAvatar())
                 .createdBy(creator)
-                .participants(new HashSet<>())
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
 
-        // Thêm creator vào participants
-        conversation.getParticipants().add(creator);
+        conversation = conversationRepository.save(conversation);
 
+        // Lấy danh sách participants (bao gồm creator)
+        List<UserEntity> participantsList = new java.util.ArrayList<>();
+        participantsList.add(creator);
+        
         // Thêm các participants khác
-        Set<UserEntity> participants = request.getParticipantIds().stream()
+        Set<UserEntity> otherParticipants = request.getParticipantIds().stream()
                 .map(participantId -> userRepository.findById(participantId)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy user với ID: " + participantId)))
                 .collect(Collectors.toSet());
-        conversation.getParticipants().addAll(participants);
-
-        conversation = conversationRepository.save(conversation);
+        participantsList.addAll(otherParticipants);
 
         // Tạo ConversationParticipantEntity cho từng participant
-        for (UserEntity participant : conversation.getParticipants()) {
-            ConversationParticipantEntity.ParticipantRole role = 
+        for (UserEntity participant : participantsList) {
+            ParticipantRole role = 
                     participant.getId().equals(userId) && type == ConversationEntity.ConversationType.GROUP
-                            ? ConversationParticipantEntity.ParticipantRole.ADMIN
-                            : ConversationParticipantEntity.ParticipantRole.MEMBER;
+                            ? ParticipantRole.ADMIN
+                            : ParticipantRole.MEMBER;
             
-            ConversationParticipantEntity cp = ConversationParticipantEntity.builder()
-                    .conversation(conversation)
-                    .user(participant)
-                    .role(role)
-                    .joinedAt(Instant.now())
-                    .build();
+            // Dùng constructor thay vì builder để đảm bảo @PrePersist được gọi
+            ConversationParticipantEntity cp = new ConversationParticipantEntity();
+            cp.setConversation(conversation);
+            cp.setUser(participant);
+            cp.setRole(role);
+            cp.setJoinedAt(Instant.now());
             conversationParticipantRepository.save(cp);
         }
 
@@ -138,7 +138,7 @@ public class ConversationService {
         // Kiểm tra quyền ADMIN
         var participant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, userId);
         if (participant.isEmpty() || 
-            participant.get().getRole() != ConversationParticipantEntity.ParticipantRole.ADMIN) {
+            participant.get().getRole() != ParticipantRole.ADMIN) {
             throw new RuntimeException("Chỉ ADMIN mới có quyền chỉnh sửa conversation");
         }
 
@@ -167,7 +167,7 @@ public class ConversationService {
         // Kiểm tra quyền ADMIN
         var participant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, userId);
         if (participant.isEmpty() || 
-            participant.get().getRole() != ConversationParticipantEntity.ParticipantRole.ADMIN) {
+            participant.get().getRole() != ParticipantRole.ADMIN) {
             throw new RuntimeException("Chỉ ADMIN mới có quyền thêm thành viên");
         }
 
@@ -181,14 +181,12 @@ public class ConversationService {
             UserEntity newUser = userRepository.findById(newUserId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy user với ID: " + newUserId));
 
-            conversation.getParticipants().add(newUser);
-
-            ConversationParticipantEntity cp = ConversationParticipantEntity.builder()
-                    .conversation(conversation)
-                    .user(newUser)
-                    .role(ConversationParticipantEntity.ParticipantRole.MEMBER)
-                    .joinedAt(Instant.now())
-                    .build();
+            // Dùng constructor thay vì builder để đảm bảo @PrePersist được gọi
+            ConversationParticipantEntity cp = new ConversationParticipantEntity();
+            cp.setConversation(conversation);
+            cp.setUser(newUser);
+            cp.setRole(ParticipantRole.MEMBER);
+            cp.setJoinedAt(Instant.now());
             conversationParticipantRepository.save(cp);
         }
 
@@ -210,7 +208,7 @@ public class ConversationService {
         // Kiểm tra quyền ADMIN hoặc tự xóa chính mình
         var participant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, userId);
         boolean isAdmin = participant.isPresent() && 
-                         participant.get().getRole() == ConversationParticipantEntity.ParticipantRole.ADMIN;
+                         participant.get().getRole() == ParticipantRole.ADMIN;
         
         if (!isAdmin && !memberId.equals(userId)) {
             throw new RuntimeException("Chỉ ADMIN mới có quyền xóa thành viên khác");
@@ -223,7 +221,6 @@ public class ConversationService {
 
         var memberParticipant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, memberId);
         if (memberParticipant.isPresent()) {
-            conversation.getParticipants().remove(memberParticipant.get().getUser());
             conversationParticipantRepository.delete(memberParticipant.get());
             conversation.setUpdatedAt(Instant.now());
             conversationRepository.save(conversation);

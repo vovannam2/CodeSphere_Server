@@ -19,8 +19,14 @@ public class UpdatePostRequest {
     
     private String content;
     
-    private List<Long> tagIds;
+    private String imageUrl; // URL hình ảnh đính kèm
     
-    private List<Long> categoryIds;
+    private String fileUrl; // URL file đính kèm
+    
+    private String fileName; // Tên file gốc
+    
+    private String fileType; // Loại file (pdf, doc, etc.)
+    
+    private List<String> tagNames; // Tên các tag (có thể tạo tag mới)
 }
 

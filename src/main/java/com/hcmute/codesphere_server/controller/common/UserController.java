@@ -5,6 +5,7 @@ import com.hcmute.codesphere_server.model.payload.response.DataResponse;
 import com.hcmute.codesphere_server.model.payload.response.PostResponse;
 import com.hcmute.codesphere_server.model.payload.response.UserProfileResponse;
 import com.hcmute.codesphere_server.model.payload.response.UserPublicProfileResponse;
+import com.hcmute.codesphere_server.model.payload.response.UserSearchResponse;
 import com.hcmute.codesphere_server.security.authentication.UserPrinciple;
 import com.hcmute.codesphere_server.security.config.Cloudinary.CloudinaryService;
 import com.hcmute.codesphere_server.service.common.ProfileService;
@@ -155,6 +156,43 @@ public class UserController {
             
             Page<PostResponse> posts = profileService.getUserPosts(id, currentUserId, pageable);
             return ResponseEntity.ok(DataResponse.success(posts));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(DataResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(DataResponse.error("Lỗi server: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<DataResponse<Page<UserSearchResponse>>> searchUsers(
+            @RequestParam String query,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            Authentication authentication) {
+        
+        try {
+            Long currentUserId = null;
+            if (authentication != null && authentication.isAuthenticated()) {
+                try {
+                    UserPrinciple userPrinciple = (UserPrinciple) authentication.getPrincipal();
+                    currentUserId = Long.parseLong(userPrinciple.getUserId());
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+
+            if (query == null || query.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(DataResponse.error("Query không được để trống"));
+            }
+
+            Sort sort = Sort.by("username").ascending();
+            Pageable pageable = PageRequest.of(page, size, sort);
+            
+            Page<UserSearchResponse> users = profileService.searchUsers(query.trim(), currentUserId, pageable);
+            return ResponseEntity.ok(DataResponse.success(users));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(DataResponse.error(e.getMessage()));

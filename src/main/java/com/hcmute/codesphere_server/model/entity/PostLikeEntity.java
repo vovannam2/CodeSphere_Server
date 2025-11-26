@@ -1,5 +1,6 @@
 package com.hcmute.codesphere_server.model.entity;
 
+import com.hcmute.codesphere_server.model.entity.embedded.PostLikeKey;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Builder;
@@ -36,40 +37,37 @@ public class PostLikeEntity {
 	@Column(nullable = false)
 	private Instant createdAt = Instant.now();
 
-	public PostLikeKey getId() { return id; }
+	public PostLikeKey getId() { 
+		if (id == null) {
+			id = new PostLikeKey();
+		}
+		return id; 
+	}
 	public void setId(PostLikeKey id) { this.id = id; }
 	public PostEntity getPost() { return post; }
-	public void setPost(PostEntity post) { this.post = post; }
+	public void setPost(PostEntity post) { 
+		this.post = post; 
+		if (post != null) {
+			if (id == null) {
+				id = new PostLikeKey();
+			}
+			id.setPostId(post.getId());
+		}
+	}
 	public UserEntity getUser() { return user; }
-	public void setUser(UserEntity user) { this.user = user; }
+	public void setUser(UserEntity user) { 
+		this.user = user; 
+		if (user != null) {
+			if (id == null) {
+				id = new PostLikeKey();
+			}
+			id.setUserId(user.getId());
+		}
+	}
 	public Integer getVote() { return vote; }
 	public void setVote(Integer vote) { this.vote = vote; }
 	public Instant getCreatedAt() { return createdAt; }
-}
-
-@Embeddable
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-class PostLikeKey implements java.io.Serializable {
-	@Column(name = "post_id")
-	private Long postId;
-	@Column(name = "user_id")
-	private Long userId;
-	public Long getPostId() { return postId; }
-	public void setPostId(Long postId) { this.postId = postId; }
-	public Long getUserId() { return userId; }
-	public void setUserId(Long userId) { this.userId = userId; }
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		PostLikeKey that = (PostLikeKey) o;
-		return java.util.Objects.equals(postId, that.postId) &&
-				java.util.Objects.equals(userId, that.userId);
-	}
-	@Override
-	public int hashCode() { return java.util.Objects.hash(postId, userId); }
+	public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }
 
 

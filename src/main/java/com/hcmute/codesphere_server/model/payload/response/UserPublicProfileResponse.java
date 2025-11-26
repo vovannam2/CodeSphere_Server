@@ -22,8 +22,9 @@ public class UserPublicProfileResponse {
     private String gender;
     private Instant lastOnline;
     private Long postCount;
-    private Long friendCount;
-    private Boolean isFriend; // null nếu chưa đăng nhập hoặc chính mình
+    private Boolean isFollowing; // null nếu chưa đăng nhập hoặc chính mình
+    private Long followerCount;
+    private Long followingCount;
     private Instant createdAt;
 }
 

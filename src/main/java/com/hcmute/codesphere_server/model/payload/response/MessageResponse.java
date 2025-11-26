@@ -20,8 +20,11 @@ public class MessageResponse {
     private String senderName;
     private String senderAvatar;
     private String content;
-    private String messageType; // TEXT, IMAGE
+    private String messageType; // TEXT, IMAGE, FILE
     private String imageUrl;
+    private String fileUrl;
+    private String fileName;
+    private String fileType;
     private Boolean isDeleted;
     private Instant createdAt;
     private Instant updatedAt;

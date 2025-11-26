@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
@@ -26,8 +25,7 @@ public class MessageWebSocketController {
      * Server gửi đến: /topic/conversation/{conversationId}
      */
     @MessageMapping("/chat.send")
-    @SendTo("/topic/conversation/{conversationId}")
-    public MessageResponse sendMessage(@Payload Map<String, Object> payload) {
+    public void sendMessage(@Payload Map<String, Object> payload) {
         try {
             Long conversationId = Long.parseLong(payload.get("conversationId").toString());
             Long userId = Long.parseLong(payload.get("userId").toString());
@@ -38,18 +36,21 @@ public class MessageWebSocketController {
                     .content((String) payload.get("content"))
                     .messageType((String) payload.get("messageType"))
                     .imageUrl((String) payload.get("imageUrl"))
+                    .fileUrl((String) payload.get("fileUrl"))
+                    .fileName((String) payload.get("fileName"))
+                    .fileType((String) payload.get("fileType"))
                     .build();
             
             // Lưu message vào database
             MessageResponse message = messageService.sendMessage(conversationId, request, userId);
             
             // Gửi đến tất cả participants trong conversation
+            // Sử dụng SimpMessagingTemplate để gửi với destination động
             messagingTemplate.convertAndSend("/topic/conversation/" + conversationId, message);
             
-            return message;
+            log.info("Message sent to conversation {} via WebSocket", conversationId);
         } catch (Exception e) {
-            log.error("Error sending message via WebSocket: {}", e.getMessage());
-            return null;
+            log.error("Error sending message via WebSocket: {}", e.getMessage(), e);
         }
     }
 

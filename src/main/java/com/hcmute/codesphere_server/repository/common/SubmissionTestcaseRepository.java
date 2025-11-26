@@ -1,7 +1,7 @@
 package com.hcmute.codesphere_server.repository.common;
 
 import com.hcmute.codesphere_server.model.entity.SubmissionTestcaseEntity;
-import com.hcmute.codesphere_server.model.entity.SubmissionTestcaseKey;
+import com.hcmute.codesphere_server.model.entity.embedded.SubmissionTestcaseKey;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

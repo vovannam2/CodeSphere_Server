@@ -15,8 +15,7 @@ import java.util.Optional;
 public interface MessageRepository extends JpaRepository<MessageEntity, Long> {
     
     @Query("SELECT m FROM MessageEntity m " +
-           "WHERE m.conversation.id = :conversationId AND m.isDeleted = false " +
-           "ORDER BY m.createdAt DESC")
+           "WHERE m.conversation.id = :conversationId AND m.isDeleted = false")
     Page<MessageEntity> findByConversationId(@Param("conversationId") Long conversationId, Pageable pageable);
     
     @Query("SELECT m FROM MessageEntity m " +

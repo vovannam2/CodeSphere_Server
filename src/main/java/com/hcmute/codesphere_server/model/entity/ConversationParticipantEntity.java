@@ -1,5 +1,6 @@
 package com.hcmute.codesphere_server.model.entity;
 
+import com.hcmute.codesphere_server.model.enums.ParticipantRole;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -35,14 +36,21 @@ public class ConversationParticipantEntity {
 
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
+    @lombok.Builder.Default
     private ParticipantRole role = ParticipantRole.MEMBER;
 
     @Column(nullable = false, updatable = false)
+    @lombok.Builder.Default
     private Instant joinedAt = Instant.now();
 
-    public enum ParticipantRole {
-        ADMIN,    // Cho GROUP conversation
-        MEMBER
+    @PrePersist
+    protected void onCreate() {
+        if (joinedAt == null) {
+            joinedAt = Instant.now();
+        }
+        if (role == null) {
+            role = ParticipantRole.MEMBER;
+        }
     }
 }
 

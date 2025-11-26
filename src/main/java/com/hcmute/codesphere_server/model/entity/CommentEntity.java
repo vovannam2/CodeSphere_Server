@@ -1,5 +1,6 @@
 package com.hcmute.codesphere_server.model.entity;
 
+import com.hcmute.codesphere_server.model.validator.CommentValidator;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Builder;
@@ -14,6 +15,7 @@ import java.time.Instant;
 	@Index(name = "idx_comment_author", columnList = "author_id"),
 	@Index(name = "idx_comment_parent", columnList = "parent_comment_id")
 })
+@EntityListeners(CommentValidator.class)
 @Data
 @Builder
 @NoArgsConstructor
