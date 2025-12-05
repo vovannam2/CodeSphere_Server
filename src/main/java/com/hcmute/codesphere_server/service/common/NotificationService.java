@@ -1,6 +1,5 @@
 package com.hcmute.codesphere_server.service.common;
 
-import com.hcmute.codesphere_server.model.entity.ConversationEntity;
 import com.hcmute.codesphere_server.model.entity.NotificationEntity;
 import com.hcmute.codesphere_server.model.entity.UserEntity;
 import com.hcmute.codesphere_server.model.payload.response.NotificationResponse;
@@ -14,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -188,27 +188,12 @@ public class NotificationService {
         );
     }
 
-    public void notifyMessage(Long receiverId, Long senderId, String senderName, Long conversationId, 
-                              String conversationName, ConversationEntity.ConversationType conversationType) {
-        String title;
-        String content;
-        
-        if (conversationType == ConversationEntity.ConversationType.GROUP) {
-            // Tin nhắn nhóm: hiển thị tên nhóm
-            title = "Tin nhắn mới";
-            content = "Có tin nhắn mới tới nhóm \"" + (conversationName != null && !conversationName.isEmpty() 
-                    ? conversationName : "Nhóm chat") + "\"";
-        } else {
-            // Tin nhắn cá nhân: hiển thị tên người gửi
-            title = "Tin nhắn mới";
-            content = senderName + " đã gửi tin nhắn";
-        }
-        
+    public void notifyMessage(Long receiverId, Long senderId, String senderName, Long conversationId) {
         createNotification(
                 receiverId,
                 NotificationEntity.NotificationType.MESSAGE,
-                title,
-                content,
+                "Tin nhắn mới",
+                senderName + " đã gửi tin nhắn",
                 senderId,
                 null, null, conversationId
         );

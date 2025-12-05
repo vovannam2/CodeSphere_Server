@@ -118,7 +118,6 @@ public class SecurityConfig {
                         "/api/v1/tags/**",           // GET tags (public)
                         "/api/v1/problems",         // GET problems list (public)
                         "/api/v1/problems/{id}",    // GET problem detail (public)
-                        "/api/v1/ai/**",            // AI endpoints (require auth)
                         // /api/v1/problems/{id}/testcases - cần admin (check trong controller)
                         "/oauth2/**",
                         "/test-auth.html",

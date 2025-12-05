@@ -6,7 +6,6 @@ import com.hcmute.codesphere_server.model.entity.UserEntity;
 import com.hcmute.codesphere_server.model.enums.ParticipantRole;
 import com.hcmute.codesphere_server.model.payload.request.AddMemberRequest;
 import com.hcmute.codesphere_server.model.payload.request.CreateConversationRequest;
-import com.hcmute.codesphere_server.model.payload.request.TransferAdminRequest;
 import com.hcmute.codesphere_server.model.payload.request.UpdateConversationRequest;
 import com.hcmute.codesphere_server.model.payload.response.ConversationParticipantResponse;
 import com.hcmute.codesphere_server.model.payload.response.ConversationResponse;
@@ -32,7 +31,6 @@ public class ConversationService {
     private final ConversationParticipantRepository conversationParticipantRepository;
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
-    private final MessageService messageService;
 
     @Transactional
     public ConversationResponse createConversation(CreateConversationRequest request, Long userId) {
@@ -137,7 +135,7 @@ public class ConversationService {
             throw new RuntimeException("Chỉ GROUP conversation mới có thể chỉnh sửa");
         }
 
-        // Kiểm tra quyền ADMIN (người tạo nhóm ban đầu được set role = ADMIN)
+        // Kiểm tra quyền ADMIN
         var participant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, userId);
         if (participant.isEmpty() || 
             participant.get().getRole() != ParticipantRole.ADMIN) {
@@ -166,7 +164,7 @@ public class ConversationService {
             throw new RuntimeException("Chỉ GROUP conversation mới có thể thêm thành viên");
         }
 
-        // Kiểm tra quyền ADMIN (người tạo nhóm ban đầu được set role = ADMIN)
+        // Kiểm tra quyền ADMIN
         var participant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, userId);
         if (participant.isEmpty() || 
             participant.get().getRole() != ParticipantRole.ADMIN) {
@@ -190,17 +188,6 @@ public class ConversationService {
             cp.setRole(ParticipantRole.MEMBER);
             cp.setJoinedAt(Instant.now());
             conversationParticipantRepository.save(cp);
-            
-            // Tạo system message: "X đã thêm Y vào nhóm"
-            UserEntity adder = userRepository.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
-            String systemMessage = adder.getUsername() + " đã thêm " + newUser.getUsername() + " vào nhóm";
-            try {
-                messageService.createSystemMessage(conversationId, systemMessage);
-            } catch (Exception e) {
-                // Log error nhưng không throw
-                System.err.println("Error creating system message: " + e.getMessage());
-            }
         }
 
         conversation.setUpdatedAt(Instant.now());
@@ -218,7 +205,7 @@ public class ConversationService {
             throw new RuntimeException("Chỉ GROUP conversation mới có thể xóa thành viên");
         }
 
-        // Kiểm tra quyền: chỉ ADMIN mới có quyền xóa thành viên khác, hoặc tự xóa chính mình
+        // Kiểm tra quyền ADMIN hoặc tự xóa chính mình
         var participant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, userId);
         boolean isAdmin = participant.isPresent() && 
                          participant.get().getRole() == ParticipantRole.ADMIN;
@@ -227,164 +214,16 @@ public class ConversationService {
             throw new RuntimeException("Chỉ ADMIN mới có quyền xóa thành viên khác");
         }
 
-        // Kiểm tra nếu đang xóa ADMIN
-        var memberParticipant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, memberId);
-        boolean isRemovingAdmin = memberParticipant.isPresent() && 
-                                  memberParticipant.get().getRole() == ParticipantRole.ADMIN;
-        
-        // Nếu đang xóa ADMIN (tự xóa chính mình), không cho phép trừ khi đã transfer admin
-        // Logic transfer admin sẽ được xử lý ở endpoint leaveGroup riêng
-        if (isRemovingAdmin && memberId.equals(userId)) {
-            throw new RuntimeException("Bạn không thể rời nhóm khi đang là ADMIN. Vui lòng bổ nhiệm thành viên khác làm ADMIN trước.");
+        // Không thể xóa creator
+        if (conversation.getCreatedBy().getId().equals(memberId)) {
+            throw new RuntimeException("Không thể xóa người tạo conversation");
         }
 
+        var memberParticipant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, memberId);
         if (memberParticipant.isPresent()) {
-            UserEntity removedUser = memberParticipant.get().getUser();
-            boolean isSelfRemove = memberId.equals(userId);
-            
             conversationParticipantRepository.delete(memberParticipant.get());
             conversation.setUpdatedAt(Instant.now());
             conversationRepository.save(conversation);
-            
-            // Tạo system message về việc rời/xóa nhóm
-            String systemMessage;
-            if (isSelfRemove) {
-                // "X đã rời nhóm"
-                systemMessage = removedUser.getUsername() + " đã rời nhóm";
-            } else {
-                // "X đã xóa Y khỏi nhóm"
-                UserEntity remover = userRepository.findById(userId)
-                        .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
-                systemMessage = remover.getUsername() + " đã xóa " + removedUser.getUsername() + " khỏi nhóm";
-            }
-            
-            try {
-                messageService.createSystemMessage(conversationId, systemMessage);
-            } catch (Exception e) {
-                // Log error nhưng không throw
-                System.err.println("Error creating system message: " + e.getMessage());
-            }
-        }
-    }
-
-    @Transactional
-    public ConversationResponse transferAdmin(Long conversationId, TransferAdminRequest request, Long userId) {
-        ConversationEntity conversation = conversationRepository.findByIdAndParticipantId(conversationId, userId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy conversation hoặc bạn không có quyền truy cập"));
-
-        // Chỉ GROUP conversation mới có thể transfer admin
-        if (conversation.getType() != ConversationEntity.ConversationType.GROUP) {
-            throw new RuntimeException("Chỉ GROUP conversation mới có thể bổ nhiệm ADMIN");
-        }
-
-        // Kiểm tra quyền: chỉ ADMIN hiện tại mới có thể transfer admin
-        var currentAdminParticipant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, userId);
-        if (currentAdminParticipant.isEmpty() || 
-            currentAdminParticipant.get().getRole() != ParticipantRole.ADMIN) {
-            throw new RuntimeException("Chỉ ADMIN hiện tại mới có quyền bổ nhiệm ADMIN mới");
-        }
-
-        // Kiểm tra newAdminId có phải là member không
-        var newAdminParticipant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, request.getNewAdminId());
-        if (newAdminParticipant.isEmpty()) {
-            throw new RuntimeException("Người dùng không phải là thành viên của nhóm");
-        }
-
-        if (newAdminParticipant.get().getRole() == ParticipantRole.ADMIN) {
-            throw new RuntimeException("Người dùng này đã là ADMIN");
-        }
-
-        // Transfer admin: set role ADMIN cho newAdmin, set role MEMBER cho currentAdmin
-        newAdminParticipant.get().setRole(ParticipantRole.ADMIN);
-        currentAdminParticipant.get().setRole(ParticipantRole.MEMBER);
-        conversationParticipantRepository.save(newAdminParticipant.get());
-        conversationParticipantRepository.save(currentAdminParticipant.get());
-
-        conversation.setUpdatedAt(Instant.now());
-        conversation = conversationRepository.save(conversation);
-
-        // Tạo system message
-        UserEntity currentAdmin = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
-        UserEntity newAdmin = newAdminParticipant.get().getUser();
-        String systemMessage = currentAdmin.getUsername() + " đã bổ nhiệm " + newAdmin.getUsername() + " làm trưởng nhóm";
-        
-        try {
-            messageService.createSystemMessage(conversationId, systemMessage);
-        } catch (Exception e) {
-            System.err.println("Error creating transfer admin system message: " + e.getMessage());
-        }
-
-        return mapToConversationResponse(conversation, userId);
-    }
-
-    @Transactional
-    public void leaveGroupWithTransfer(Long conversationId, Long userId, Long newAdminId) {
-        ConversationEntity conversation = conversationRepository.findByIdAndParticipantId(conversationId, userId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy conversation hoặc bạn không có quyền truy cập"));
-
-        // Chỉ GROUP conversation mới có thể rời nhóm
-        if (conversation.getType() != ConversationEntity.ConversationType.GROUP) {
-            throw new RuntimeException("Chỉ GROUP conversation mới có thể rời nhóm");
-        }
-
-        // Kiểm tra user có phải là participant không
-        var participant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, userId);
-        if (participant.isEmpty()) {
-            throw new RuntimeException("Bạn không phải là thành viên của nhóm");
-        }
-
-        boolean isAdmin = participant.get().getRole() == ParticipantRole.ADMIN;
-
-        // Nếu là ADMIN, phải transfer admin trước khi rời nhóm
-        if (isAdmin) {
-            if (newAdminId == null) {
-                throw new RuntimeException("Bạn không thể rời nhóm khi đang là ADMIN. Vui lòng bổ nhiệm thành viên khác làm ADMIN trước.");
-            }
-
-            // Kiểm tra newAdminId có phải là member không
-            var newAdminParticipant = conversationParticipantRepository.findByConversationIdAndUserId(conversationId, newAdminId);
-            if (newAdminParticipant.isEmpty()) {
-                throw new RuntimeException("Người dùng không phải là thành viên của nhóm");
-            }
-
-            if (newAdminId.equals(userId)) {
-                throw new RuntimeException("Không thể bổ nhiệm chính mình làm ADMIN");
-            }
-
-            if (newAdminParticipant.get().getRole() == ParticipantRole.ADMIN) {
-                throw new RuntimeException("Người dùng này đã là ADMIN");
-            }
-
-            // Transfer admin
-            newAdminParticipant.get().setRole(ParticipantRole.ADMIN);
-            conversationParticipantRepository.save(newAdminParticipant.get());
-
-            // Tạo system message về transfer admin
-            UserEntity currentAdmin = userRepository.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
-            UserEntity newAdmin = newAdminParticipant.get().getUser();
-            String transferMessage = currentAdmin.getUsername() + " đã bổ nhiệm " + newAdmin.getUsername() + " làm trưởng nhóm";
-            
-            try {
-                messageService.createSystemMessage(conversationId, transferMessage);
-            } catch (Exception e) {
-                System.err.println("Error creating transfer admin system message: " + e.getMessage());
-            }
-        }
-
-        // Xóa user khỏi nhóm
-        UserEntity leavingUser = participant.get().getUser();
-        conversationParticipantRepository.delete(participant.get());
-        conversation.setUpdatedAt(Instant.now());
-        conversationRepository.save(conversation);
-
-        // Tạo system message về việc rời nhóm
-        String leaveMessage = leavingUser.getUsername() + " đã rời nhóm";
-        try {
-            messageService.createSystemMessage(conversationId, leaveMessage);
-        } catch (Exception e) {
-            System.err.println("Error creating leave group system message: " + e.getMessage());
         }
     }
 

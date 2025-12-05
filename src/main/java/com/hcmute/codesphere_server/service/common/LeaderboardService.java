@@ -2,7 +2,6 @@ package com.hcmute.codesphere_server.service.common;
 
 import com.hcmute.codesphere_server.model.entity.SubmissionEntity;
 import com.hcmute.codesphere_server.model.entity.UserProblemBestEntity;
-import com.hcmute.codesphere_server.model.payload.response.GlobalLeaderboardResponse;
 import com.hcmute.codesphere_server.model.payload.response.LeaderboardResponse;
 import com.hcmute.codesphere_server.repository.common.ProblemRepository;
 import com.hcmute.codesphere_server.repository.common.UserProblemBestRepository;
@@ -78,43 +77,6 @@ public class LeaderboardService {
                             .orElse(null);
                 })
                 .orElse(null); // null nếu user chưa nộp bài nào
-    }
-
-    /**
-     * Lấy global leaderboard - xếp hạng tất cả users theo tổng số bài đã giải đúng
-     */
-    @Transactional(readOnly = true)
-    public List<GlobalLeaderboardResponse> getGlobalLeaderboard() {
-        List<Object[]> results = userProblemBestRepository.findAllUsersWithSolvedCount();
-        
-        List<GlobalLeaderboardResponse> leaderboard = new ArrayList<>();
-        for (int i = 0; i < results.size(); i++) {
-            Object[] row = results.get(i);
-            // row[0] = userId (Long), row[1] = username (String), 
-            // row[2] = totalSolved (BigInteger), row[3] = solvedEasy (BigInteger),
-            // row[4] = solvedMedium (BigInteger), row[5] = solvedHard (BigInteger)
-            
-            Long userId = ((Number) row[0]).longValue();
-            String username = (String) row[1];
-            Integer totalSolved = ((Number) row[2]).intValue();
-            Integer solvedEasy = ((Number) row[3]).intValue();
-            Integer solvedMedium = ((Number) row[4]).intValue();
-            Integer solvedHard = ((Number) row[5]).intValue();
-            
-            GlobalLeaderboardResponse response = GlobalLeaderboardResponse.builder()
-                    .rank(i + 1)
-                    .userId(userId)
-                    .username(username)
-                    .totalSolved(totalSolved)
-                    .solvedEasy(solvedEasy)
-                    .solvedMedium(solvedMedium)
-                    .solvedHard(solvedHard)
-                    .build();
-            
-            leaderboard.add(response);
-        }
-        
-        return leaderboard;
     }
 }
 
