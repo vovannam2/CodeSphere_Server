@@ -49,10 +49,10 @@ public class AuthService {
         user = userRepository.save(user);
 
         // Lấy role mặc định
-        RoleEntity role = roleRepository.findByName("ROLE_USER")
+        RoleEntity role = roleRepository.findByName("ROLE_ADMIN")
             .orElseGet(() -> {
                 RoleEntity newRole = new RoleEntity();
-                newRole.setName("ROLE_USER");
+                newRole.setName("ROLE_ADMIN");
                 return roleRepository.save(newRole);
             });
 

@@ -14,5 +14,7 @@ public interface SubmissionTestcaseRepository extends JpaRepository<SubmissionTe
     
     @Query("SELECT st FROM SubmissionTestcaseEntity st WHERE st.id.submissionId = :submissionId AND st.isDeleted = false")
     List<SubmissionTestcaseEntity> findBySubmissionId(@Param("submissionId") Long submissionId);
+    
+    long countByTestCase_Id(Long testCaseId);
 }
 

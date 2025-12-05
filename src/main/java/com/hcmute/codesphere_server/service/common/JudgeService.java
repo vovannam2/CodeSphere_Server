@@ -317,45 +317,7 @@ public class JudgeService {
         freshSubmission.setUpdatedAt(Instant.now());
 
         // Tính runtime và memory trung bình từ submission testcases
-        List<SubmissionTestcaseEntity> testcases = submissionTestcaseRepository.findBySubmissionId(freshSubmission.getId());
-        if (testcases != null && !testcases.isEmpty()) {
-            // Tính trung bình runtime (ms)
-            double avgRuntime = testcases.stream()
-                    .filter(tc -> tc.getRuntimeMs() != null && tc.getRuntimeMs() > 0)
-                    .mapToInt(SubmissionTestcaseEntity::getRuntimeMs)
-                    .average()
-                    .orElse(0.0);
-            
-            // Tính trung bình memory (KB)
-            double avgMemoryKb = testcases.stream()
-                    .filter(tc -> tc.getMemoryKb() != null && tc.getMemoryKb() > 0)
-                    .mapToInt(SubmissionTestcaseEntity::getMemoryKb)
-                    .average()
-                    .orElse(0.0);
-            
-            // Format runtime: "X ms" hoặc "0 ms" nếu không có data
-            if (avgRuntime > 0) {
-                freshSubmission.setStatusRuntime(String.format("%.0f ms", avgRuntime));
-            } else {
-                freshSubmission.setStatusRuntime("0 ms");
-            }
-            
-            // Format memory: "X KB" hoặc "X MB" nếu >= 1024 KB, hoặc "0 KB" nếu không có data
-            if (avgMemoryKb > 0) {
-                if (avgMemoryKb >= 1024) {
-                    double memoryMb = avgMemoryKb / 1024.0;
-                    freshSubmission.setStatusMemory(String.format("%.2f MB", memoryMb));
-                } else {
-                    freshSubmission.setStatusMemory(String.format("%.0f KB", avgMemoryKb));
-                }
-            } else {
-                freshSubmission.setStatusMemory("0 KB");
-            }
-        } else {
-            // Nếu không có testcases, giữ giá trị mặc định
-            freshSubmission.setStatusRuntime("0 ms");
-            freshSubmission.setStatusMemory("0 KB");
-        }
+        // (có thể implement sau)
 
         submissionRepository.save(freshSubmission);
         // Flush và commit ngay để frontend có thể poll được

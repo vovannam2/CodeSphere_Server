@@ -13,7 +13,6 @@ import com.hcmute.codesphere_server.repository.common.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +27,6 @@ public class MessageService {
     private final ConversationParticipantRepository conversationParticipantRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
-    private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public MessageResponse sendMessage(Long conversationId, SendMessageRequest request, Long userId) {
@@ -83,18 +81,13 @@ public class MessageService {
         // Gửi notification cho tất cả participants (trừ sender)
         try {
             var participants = conversationParticipantRepository.findByConversationId(conversationId);
-            String conversationName = conversation.getName();
-            ConversationEntity.ConversationType conversationType = conversation.getType();
-            
             for (var participant : participants) {
                 if (participant.getUser() != null && !participant.getUser().getId().equals(userId)) {
                     notificationService.notifyMessage(
                             participant.getUser().getId(),
                             userId,
                             sender.getUsername(),
-                            conversationId,
-                            conversationName,
-                            conversationType
+                            conversationId
                     );
                 }
             }
@@ -134,44 +127,6 @@ public class MessageService {
             message.getConversation().setUpdatedAt(Instant.now());
             conversationRepository.save(message.getConversation());
         }
-    }
-
-    @Transactional
-    public MessageResponse createSystemMessage(Long conversationId, String content) {
-        ConversationEntity conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy conversation"));
-        
-        // System message không có sender (hoặc có thể dùng system user)
-        // Tạm thời dùng createdBy của conversation làm sender
-        UserEntity systemSender = conversation.getCreatedBy();
-        
-        MessageEntity message = MessageEntity.builder()
-                .conversation(conversation)
-                .sender(systemSender) // System message vẫn cần sender để tránh null
-                .content(content)
-                .messageType(MessageType.SYSTEM)
-                .isDeleted(false)
-                .createdAt(Instant.now())
-                .updatedAt(Instant.now())
-                .build();
-        
-        message = messageRepository.save(message);
-        
-        // Cập nhật updatedAt của conversation
-        conversation.setUpdatedAt(Instant.now());
-        conversationRepository.save(conversation);
-        
-        MessageResponse messageResponse = mapToMessageResponse(message);
-        
-        // Gửi system message qua WebSocket để frontend nhận real-time
-        try {
-            messagingTemplate.convertAndSend("/topic/conversation/" + conversationId, messageResponse);
-        } catch (Exception e) {
-            // Log error nhưng không throw
-            System.err.println("Error sending system message via WebSocket: " + e.getMessage());
-        }
-        
-        return messageResponse;
     }
 
     private MessageResponse mapToMessageResponse(MessageEntity entity) {

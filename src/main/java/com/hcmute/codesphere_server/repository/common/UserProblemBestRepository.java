@@ -45,23 +45,5 @@ public interface UserProblemBestRepository extends JpaRepository<UserProblemBest
     @Query("SELECT COUNT(upb) FROM UserProblemBestEntity upb " +
            "WHERE upb.user.id = :userId AND upb.bestSubmission.isAccepted = true")
     Long countSolvedByUserId(@Param("userId") Long userId);
-    
-    /**
-     * Lấy tất cả users với số bài đã giải đúng, group by user và đếm
-     * Sắp xếp theo số bài giải đúng giảm dần
-     */
-    @Query(value = "SELECT upb.user_id, u.username, " +
-           "COUNT(*) as totalSolved, " +
-           "SUM(CASE WHEN p.level = 'EASY' THEN 1 ELSE 0 END) as solvedEasy, " +
-           "SUM(CASE WHEN p.level = 'MEDIUM' THEN 1 ELSE 0 END) as solvedMedium, " +
-           "SUM(CASE WHEN p.level = 'HARD' THEN 1 ELSE 0 END) as solvedHard " +
-           "FROM user_problem_best upb " +
-           "INNER JOIN submissions s ON upb.best_submission_id = s.id " +
-           "INNER JOIN users u ON upb.user_id = u.id " +
-           "INNER JOIN problems p ON upb.problem_id = p.id " +
-           "WHERE s.is_accepted = true " +
-           "GROUP BY upb.user_id, u.username " +
-           "ORDER BY totalSolved DESC, upb.user_id ASC", nativeQuery = true)
-    List<Object[]> findAllUsersWithSolvedCount();
 }
 

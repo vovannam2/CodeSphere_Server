@@ -31,15 +31,10 @@ public class MessageWebSocketController {
             Long userId = Long.parseLong(payload.get("userId").toString());
             
             // Tạo SendMessageRequest từ payload
-            // Đảm bảo messageType luôn có giá trị, mặc định là TEXT nếu không có
-            String messageType = payload.get("messageType") != null 
-                ? (String) payload.get("messageType") 
-                : "TEXT";
-            
             com.hcmute.codesphere_server.model.payload.request.SendMessageRequest request = 
                 com.hcmute.codesphere_server.model.payload.request.SendMessageRequest.builder()
                     .content((String) payload.get("content"))
-                    .messageType(messageType)
+                    .messageType((String) payload.get("messageType"))
                     .imageUrl((String) payload.get("imageUrl"))
                     .fileUrl((String) payload.get("fileUrl"))
                     .fileName((String) payload.get("fileName"))
