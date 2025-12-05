@@ -9,7 +9,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("${base.url}/admin/problems")
@@ -49,25 +52,6 @@ public class AdminProblemController {
             return ResponseEntity.badRequest()
                     .body(DataResponse.error(e.getMessage()));
         }
-    }
-    @GetMapping("/{id}")
-    public ResponseEntity<DataResponse<ProblemDetailResponse>> getProblem(@PathVariable Long id) {
-        ProblemDetailResponse problem = adminProblemService.getProblem(id);
-        return ResponseEntity.ok(DataResponse.success(problem));
-    }
-    
-    @PutMapping("/{id}")
-    public ResponseEntity<DataResponse<ProblemDetailResponse>> updateProblem(
-            @PathVariable Long id,
-            @RequestBody CreateProblemRequest request) {
-        ProblemDetailResponse updated = adminProblemService.updateProblem(id, request);
-        return ResponseEntity.ok(DataResponse.success(updated));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<DataResponse<String>> deleteProblem(@PathVariable Long id) {
-        adminProblemService.deleteProblem(id);
-        return ResponseEntity.ok(DataResponse.success("Deleted"));
     }
 }
 

@@ -7,7 +7,7 @@ import com.hcmute.codesphere_server.repository.common.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-        
+
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
@@ -100,82 +100,6 @@ public class AdminProblemService {
 
         // Map sang response
         return mapToProblemDetailResponse(problem);
-    }
-
-    @Transactional(readOnly = true)
-        public ProblemDetailResponse getProblem(Long id) {
-            ProblemEntity problem = problemRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Problem với ID " + id + " không tồn tại"));
-            return mapToProblemDetailResponse(problem);
-        }
-
-    @Transactional
-    public ProblemDetailResponse updateProblem(Long id, CreateProblemRequest request) {
-        ProblemEntity p = problemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Problem với ID " + id + " không tồn tại"));
-
-        // Cập nhật các field cơ bản (chỉ cập nhật khi có giá trị mới)
-        if (request.getTitle() != null) p.setTitle(request.getTitle());
-        if (request.getSlug() != null) p.setSlug(request.getSlug().toLowerCase());
-        if (request.getCode() != null) p.setCode(request.getCode().toUpperCase());
-        if (request.getContent() != null) p.setContent(request.getContent());
-        if (request.getSampleInput() != null) p.setSampleInput(request.getSampleInput());
-        if (request.getSampleOutput() != null) p.setSampleOutput(request.getSampleOutput());
-        if (request.getTimeLimitMs() != null) p.setTimeLimitMs(request.getTimeLimitMs());
-        if (request.getMemoryLimitMb() != null) p.setMemoryLimitMb(request.getMemoryLimitMb());
-
-        if (request.getLevel() != null) {
-            String level = request.getLevel().toUpperCase();
-            if (!level.equals("EASY") && !level.equals("MEDIUM") && !level.equals("HARD")) {
-                throw new RuntimeException("Level phải là EASY, MEDIUM hoặc HARD");
-            }
-            p.setLevel(level);
-        }
-
-        // Categories (nhiều)
-        if (request.getCategoryIds() != null) {
-            Set<CategoryEntity> categories = new HashSet<>();
-            for (Long categoryId : request.getCategoryIds()) {
-                CategoryEntity category = categoryRepository.findById(categoryId)
-                        .orElseThrow(() -> new RuntimeException("Category với ID " + categoryId + " không tồn tại"));
-                categories.add(category);
-            }
-            p.setCategories(categories);
-        }
-
-        // Tags (nhiều)
-        if (request.getTagIds() != null) {
-            Set<TagEntity> tags = new HashSet<>();
-            for (Long tagId : request.getTagIds()) {
-                TagEntity tag = tagRepository.findById(tagId)
-                        .orElseThrow(() -> new RuntimeException("Tag với ID " + tagId + " không tồn tại"));
-                tags.add(tag);
-            }
-            p.setTags(tags);
-        }
-
-        // Languages (nhiều)
-        if (request.getLanguageIds() != null) {
-            Set<LanguageEntity> languages = new HashSet<>();
-            for (Long languageId : request.getLanguageIds()) {
-                LanguageEntity language = languageRepository.findById(languageId)
-                        .orElseThrow(() -> new RuntimeException("Language với ID " + languageId + " không tồn tại"));
-                languages.add(language);
-            }
-            p.setLanguages(languages);
-        }
-
-        p.setUpdatedAt(Instant.now());
-        ProblemEntity saved = problemRepository.save(p);
-        return mapToProblemDetailResponse(saved);
-    }
-
-    @Transactional
-    public void deleteProblem(Long id) {
-        if (!problemRepository.existsById(id)) {
-            throw new RuntimeException("Problem với ID " + id + " không tồn tại");
-        }
-        problemRepository.deleteById(id);
     }
 
     private ProblemDetailResponse mapToProblemDetailResponse(ProblemEntity entity) {

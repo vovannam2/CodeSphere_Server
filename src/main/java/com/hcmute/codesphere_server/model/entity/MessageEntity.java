@@ -37,7 +37,7 @@ public class MessageEntity {
     @Column(columnDefinition = "LONGTEXT")
     private String content; // Nullable nếu là IMAGE
 
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20)")
     @Enumerated(EnumType.STRING)
     private MessageType messageType = MessageType.TEXT;
 
