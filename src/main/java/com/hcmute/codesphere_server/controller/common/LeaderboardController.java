@@ -1,6 +1,7 @@
 package com.hcmute.codesphere_server.controller.common;
 
 import com.hcmute.codesphere_server.model.payload.response.DataResponse;
+import com.hcmute.codesphere_server.model.payload.response.GlobalLeaderboardResponse;
 import com.hcmute.codesphere_server.model.payload.response.LeaderboardResponse;
 import com.hcmute.codesphere_server.security.authentication.UserPrinciple;
 import com.hcmute.codesphere_server.service.common.LeaderboardService;
@@ -73,6 +74,21 @@ public class LeaderboardController {
             }
             
             return ResponseEntity.ok(DataResponse.success(myRank));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(DataResponse.error(e.getMessage()));
+        }
+    }
+
+    /**
+     * Lấy global leaderboard - xếp hạng tất cả users theo tổng số bài đã giải đúng
+     * GET /api/v1/leaderboard/global
+     */
+    @GetMapping("/global")
+    public ResponseEntity<DataResponse<List<GlobalLeaderboardResponse>>> getGlobalLeaderboard() {
+        try {
+            List<GlobalLeaderboardResponse> leaderboard = leaderboardService.getGlobalLeaderboard();
+            return ResponseEntity.ok(DataResponse.success(leaderboard));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(DataResponse.error(e.getMessage()));

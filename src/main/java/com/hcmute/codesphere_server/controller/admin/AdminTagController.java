@@ -9,7 +9,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("${base.url}/admin/tags")
@@ -46,17 +49,6 @@ public class AdminTagController {
             return ResponseEntity.badRequest()
                     .body(DataResponse.error(e.getMessage()));
         }
-    }
-    
-    @PutMapping("/{id}")
-    public ResponseEntity<DataResponse<TagResponse>> updateTag(@PathVariable Long id, @RequestBody CreateTagRequest req) {
-        return ResponseEntity.ok(DataResponse.success(adminTagService.updateTag(id, req)));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<DataResponse<String>> deleteTag(@PathVariable Long id) {
-        adminTagService.deleteTag(id);
-        return ResponseEntity.ok(DataResponse.success("Deleted"));
     }
 }
 
