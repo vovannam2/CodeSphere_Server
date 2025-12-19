@@ -6,6 +6,7 @@ import com.hcmute.codesphere_server.model.payload.response.SubmissionDetailRespo
 import com.hcmute.codesphere_server.model.payload.response.SubmissionResponse;
 import com.hcmute.codesphere_server.repository.common.*;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,9 +17,11 @@ import jakarta.persistence.EntityManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronization;
 
+import com.hcmute.codesphere_server.model.enums.ContestType;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -30,12 +33,20 @@ public class SubmissionService {
     private final UserRepository userRepository;
     private final JudgeService judgeService;
     private final EntityManager entityManager;
+    private final ContestSubmissionRepository contestSubmissionRepository;
+    private final ContestRepository contestRepository;
+    private final ContestRegistrationRepository contestRegistrationRepository;
 
     @Transactional
-    public SubmissionDetailResponse createSubmission(CreateSubmissionRequest request, Long userId) {
+    public SubmissionDetailResponse createSubmission(CreateSubmissionRequest request, Long userId, Long contestId) {
         // Kiểm tra problem tồn tại và active
         ProblemEntity problem = problemRepository.findByIdAndStatusTrue(request.getProblemId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy bài tập"));
+
+        // Nếu có contestId, validate contest access
+        if (contestId != null) {
+            validateContestAccess(contestId, userId);
+        }
 
         // Kiểm tra language tồn tại
         LanguageEntity language = languageRepository.findById(request.getLanguageId())
@@ -98,6 +109,65 @@ public class SubmissionService {
         return mapToSubmissionDetailResponse(submission);
     }
 
+    private void validateContestAccess(Long contestId, Long userId) {
+        ContestEntity contest = contestRepository.findById(contestId)
+                .orElseThrow(() -> new RuntimeException("Contest không tồn tại"));
+
+        if (contest.getIsDeleted()) {
+            throw new RuntimeException("Contest đã bị xóa");
+        }
+
+        Instant now = Instant.now();
+
+        if (contest.getContestType() == ContestType.PRACTICE) {
+            // PRACTICE: user phải đã bắt đầu (startedAt != null) và chưa hết thời gian (now < endedAt)
+            if (userId == null) {
+                throw new RuntimeException("Bạn cần đăng nhập để tham gia contest");
+            }
+            
+            Optional<ContestRegistrationEntity> registrationOpt = 
+                    contestRegistrationRepository.findByContestId(contestId)
+                    .stream()
+                    .filter(reg -> reg.getUser().getId().equals(userId))
+                    .findFirst();
+            
+            if (registrationOpt.isEmpty()) {
+                throw new RuntimeException("Bạn chưa bắt đầu contest này. Vui lòng bấm 'Bắt đầu' trước.");
+            }
+            
+            ContestRegistrationEntity registration = registrationOpt.get();
+            if (registration.getStartedAt() == null || registration.getEndedAt() == null) {
+                throw new RuntimeException("Bạn chưa bắt đầu contest này. Vui lòng bấm 'Bắt đầu' trước.");
+            }
+            
+            if (now.isBefore(registration.getStartedAt())) {
+                throw new RuntimeException("Thời gian làm bài của bạn chưa bắt đầu");
+            }
+            
+            if (now.isAfter(registration.getEndedAt())) {
+                throw new RuntimeException("Thời gian làm bài của bạn đã hết. Vui lòng bấm 'Làm lại' để bắt đầu session mới.");
+            }
+        } else if (contest.getContestType() == ContestType.OFFICIAL) {
+            // OFFICIAL: user phải đã đăng ký và contest phải đang diễn ra
+            if (userId != null && !contestRegistrationRepository.existsByContestIdAndUserId(contestId, userId)) {
+                throw new RuntimeException("Bạn chưa đăng ký contest này");
+            }
+
+            // Check if contest has started (chỉ cho phép submit khi contest đã bắt đầu)
+            if (contest.getStartTime() == null || contest.getEndTime() == null) {
+                throw new RuntimeException("Contest không có thời gian hợp lệ");
+            }
+            
+            if (now.isBefore(contest.getStartTime())) {
+                throw new RuntimeException("Contest chưa bắt đầu. Bạn chỉ có thể submit khi contest đã bắt đầu");
+            }
+            
+            if (now.isAfter(contest.getEndTime())) {
+                throw new RuntimeException("Contest đã kết thúc");
+            }
+        }
+    }
+
     @Transactional(readOnly = true)
     public Page<SubmissionResponse> getSubmissions(
             Long userId,
@@ -154,6 +224,15 @@ public class SubmissionService {
                     predicates.add(cb.equal(root.get("isAccepted"), false));
                 }
             }
+            
+            // Loại bỏ submission đã được dùng trong contest (chỉ hiện submission non-contest)
+            // LEFT JOIN với ContestSubmissionEntity và filter WHERE contest_submission.id IS NULL
+            Subquery<Long> contestSubmissionSubquery = query.subquery(Long.class);
+            jakarta.persistence.criteria.Root<ContestSubmissionEntity> contestSubmissionRoot = contestSubmissionSubquery.from(ContestSubmissionEntity.class);
+            contestSubmissionSubquery.select(contestSubmissionRoot.get("submission").get("id"));
+            contestSubmissionSubquery.where(cb.equal(contestSubmissionRoot.get("submission").get("id"), root.get("id")));
+            
+            predicates.add(cb.not(cb.exists(contestSubmissionSubquery)));
             
             return cb.and(predicates.toArray(new Predicate[0]));
         };

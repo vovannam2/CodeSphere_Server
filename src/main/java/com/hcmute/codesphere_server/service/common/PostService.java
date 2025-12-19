@@ -17,6 +17,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -37,17 +39,29 @@ public class PostService {
     private final TagRepository tagRepository;
     private final NotificationService notificationService;
     private final FollowRepository followRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
     public PostDetailResponse createPost(CreatePostRequest request, Long userId) {
         UserEntity author = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
 
+        // Convert images list to JSON string
+        String imagesJson = null;
+        if (request.getImages() != null && !request.getImages().isEmpty()) {
+            try {
+                imagesJson = objectMapper.writeValueAsString(request.getImages());
+            } catch (Exception e) {
+                throw new RuntimeException("Error serializing images", e);
+            }
+        }
+
         PostEntity post = PostEntity.builder()
                 .author(author)
                 .title(request.getTitle())
                 .content(request.getContent())
                 .imageUrl(request.getImageUrl())
+                .images(imagesJson)
                 .fileUrl(request.getFileUrl())
                 .fileName(request.getFileName())
                 .fileType(request.getFileType())
@@ -171,6 +185,14 @@ public class PostService {
         }
         if (request.getImageUrl() != null) {
             post.setImageUrl(request.getImageUrl());
+        }
+        if (request.getImages() != null) {
+            try {
+                String imagesJson = objectMapper.writeValueAsString(request.getImages());
+                post.setImages(imagesJson);
+            } catch (Exception e) {
+                throw new RuntimeException("Error serializing images", e);
+            }
         }
         if (request.getFileUrl() != null) {
             post.setFileUrl(request.getFileUrl());
@@ -397,11 +419,23 @@ public class PostService {
             }
         }
 
+        // Parse images JSON to List<String>
+        List<String> imagesList = null;
+        if (entity.getImages() != null && !entity.getImages().trim().isEmpty()) {
+            try {
+                imagesList = objectMapper.readValue(entity.getImages(), new TypeReference<List<String>>() {});
+            } catch (Exception e) {
+                // If parsing fails, return empty list
+                imagesList = new ArrayList<>();
+            }
+        }
+
         return PostResponse.builder()
                 .id(entity.getId())
                 .title(entity.getTitle())
                 .content(entity.getContent())
                 .imageUrl(entity.getImageUrl())
+                .images(imagesList)
                 .fileUrl(entity.getFileUrl())
                 .fileName(entity.getFileName())
                 .fileType(entity.getFileType())
@@ -441,6 +475,7 @@ public class PostService {
                 .title(baseResponse.getTitle())
                 .content(baseResponse.getContent())
                 .imageUrl(baseResponse.getImageUrl())
+                .images(baseResponse.getImages())
                 .fileUrl(baseResponse.getFileUrl())
                 .fileName(baseResponse.getFileName())
                 .fileType(baseResponse.getFileType())

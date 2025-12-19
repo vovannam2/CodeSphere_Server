@@ -12,8 +12,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.hcmute.codesphere_server.model.enums.ContestType;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -24,6 +27,8 @@ public class ProblemService {
     private final ProblemRepository problemRepository;
     private final TestCaseRepository testCaseRepository;
     private final ProblemBookmarkService problemBookmarkService;
+    private final ContestRepository contestRepository;
+    private final ContestRegistrationRepository contestRegistrationRepository;
 
     @Transactional(readOnly = true)
     public Page<ProblemResponse> getProblems(
@@ -125,6 +130,66 @@ public class ProblemService {
     }
 
     @Transactional(readOnly = true)
+    public void validateContestAccess(Long contestId, Long userId) {
+        ContestEntity contest = contestRepository.findById(contestId)
+                .orElseThrow(() -> new RuntimeException("Contest không tồn tại"));
+
+        if (contest.getIsDeleted()) {
+            throw new RuntimeException("Contest đã bị xóa");
+        }
+
+        Instant now = Instant.now();
+
+        if (contest.getContestType() == ContestType.PRACTICE) {
+            // PRACTICE: user phải đã bắt đầu (startedAt != null) và chưa hết thời gian (now < endedAt)
+            if (userId == null) {
+                throw new RuntimeException("Bạn cần đăng nhập để tham gia contest");
+            }
+            
+            Optional<ContestRegistrationEntity> registrationOpt = 
+                    contestRegistrationRepository.findByContestId(contestId)
+                    .stream()
+                    .filter(reg -> reg.getUser().getId().equals(userId))
+                    .findFirst();
+            
+            if (registrationOpt.isEmpty()) {
+                throw new RuntimeException("Bạn chưa bắt đầu contest này. Vui lòng bấm 'Bắt đầu' trước.");
+            }
+            
+            ContestRegistrationEntity registration = registrationOpt.get();
+            if (registration.getStartedAt() == null || registration.getEndedAt() == null) {
+                throw new RuntimeException("Bạn chưa bắt đầu contest này. Vui lòng bấm 'Bắt đầu' trước.");
+            }
+            
+            if (now.isBefore(registration.getStartedAt())) {
+                throw new RuntimeException("Thời gian làm bài của bạn chưa bắt đầu");
+            }
+            
+            if (now.isAfter(registration.getEndedAt())) {
+                throw new RuntimeException("Thời gian làm bài của bạn đã hết. Vui lòng bấm 'Làm lại' để bắt đầu session mới.");
+            }
+        } else if (contest.getContestType() == ContestType.OFFICIAL) {
+            // OFFICIAL: user phải đã đăng ký và contest phải đang diễn ra
+            if (userId != null && !contestRegistrationRepository.existsByContestIdAndUserId(contestId, userId)) {
+                throw new RuntimeException("Bạn chưa đăng ký contest này");
+            }
+
+            // Check if contest has started (chỉ cho phép xem và làm bài khi contest đã bắt đầu)
+            if (contest.getStartTime() == null || contest.getEndTime() == null) {
+                throw new RuntimeException("Contest không có thời gian hợp lệ");
+            }
+            
+            if (now.isBefore(contest.getStartTime())) {
+                throw new RuntimeException("Contest chưa bắt đầu. Bạn chỉ có thể xem và làm bài khi contest đã bắt đầu");
+            }
+            
+            if (now.isAfter(contest.getEndTime())) {
+                throw new RuntimeException("Contest đã kết thúc");
+            }
+        }
+    }
+
+    @Transactional(readOnly = true)
     public List<TestCaseResponse> getSampleTestCases(Long problemId) {
         // Kiểm tra problem tồn tại
         ProblemEntity problem = problemRepository.findByIdAndStatusTrue(problemId)
@@ -171,6 +236,10 @@ public class ProblemService {
             
             // Chỉ lấy bài tập active
             predicates.add(cb.equal(root.get("status"), true));
+            // Chỉ hiện problems public (isPublic = true)
+            predicates.add(cb.equal(root.get("isPublic"), true));
+            // Chỉ hiện problems thường (isContest = false) - loại bỏ contest-only problems
+            predicates.add(cb.equal(root.get("isContest"), false));
             
             // Filter theo level
             if (level != null && !level.isEmpty()) {
@@ -243,7 +312,6 @@ public class ProblemService {
                 .id(entity.getId())
                 .code(entity.getCode())
                 .title(entity.getTitle())
-                .slug(entity.getSlug())
                 .level(entity.getLevel())
                 .timeLimitMs(entity.getTimeLimitMs())
                 .memoryLimitMb(entity.getMemoryLimitMb())
@@ -264,20 +332,15 @@ public class ProblemService {
     }
 
     private ProblemDetailResponse mapToProblemDetailResponse(ProblemEntity entity) {
-        // sampleInput và sampleOutput trong ProblemEntity chỉ dùng để hiển thị ở description frontend
         // Các testcases thực tế được lưu trong TestCaseEntity
         
         return ProblemDetailResponse.builder()
                 .id(entity.getId())
                 .code(entity.getCode())
                 .title(entity.getTitle())
-                .slug(entity.getSlug())
                 .content(entity.getContent())
                 .level(entity.getLevel())
-                .sampleInput(entity.getSampleInput())
-                .sampleOutput(entity.getSampleOutput())
                 .timeLimitMs(entity.getTimeLimitMs())
-                .memoryLimitMb(entity.getMemoryLimitMb())
                 .authorId(entity.getAuthor() != null ? entity.getAuthor().getId() : null)
                 .authorName(entity.getAuthor() != null ? entity.getAuthor().getUsername() : null)
                 .categories(entity.getCategories().stream()

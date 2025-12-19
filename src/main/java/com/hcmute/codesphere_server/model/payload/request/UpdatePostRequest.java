@@ -19,7 +19,9 @@ public class UpdatePostRequest {
     
     private String content;
     
-    private String imageUrl; // URL hình ảnh đính kèm
+    private String imageUrl; // URL hình ảnh đính kèm (deprecated)
+    
+    private List<String> images; // List of image URLs
     
     private String fileUrl; // URL file đính kèm
     

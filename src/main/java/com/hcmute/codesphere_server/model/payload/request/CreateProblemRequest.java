@@ -18,10 +18,6 @@ public class CreateProblemRequest {
     @Size(max = 200, message = "Title không được vượt quá 200 ký tự")
     private String title;
     
-    @NotBlank(message = "Slug không được để trống")
-    @Size(max = 220, message = "Slug không được vượt quá 220 ký tự")
-    private String slug;
-    
     @NotBlank(message = "Content không được để trống")
     private String content;
     
@@ -29,14 +25,10 @@ public class CreateProblemRequest {
     @Size(max = 10, message = "Level không được vượt quá 10 ký tự")
     private String level; // EASY/MEDIUM/HARD
     
-    private String sampleInput;
-    
-    private String sampleOutput;
-    
     private Integer timeLimitMs = 2000;
-    
-    private Integer memoryLimitMb = 256;
-    
+
+    private Integer memoryLimitMb = 256; // Default: 256MB
+
     @NotNull(message = "Category IDs không được để trống")
     private List<Long> categoryIds; // Danh sách category IDs
     
@@ -44,5 +36,9 @@ public class CreateProblemRequest {
     
     @NotNull(message = "Language IDs không được để trống")
     private List<Long> languageIds; // Danh sách language IDs
+    
+    private Boolean isPublic = true; // true = public, false = premium content
+    
+    private Boolean isContest = false; // true = contest-only (không hiện ở ProblemsPage)
 }
 

@@ -36,7 +36,11 @@ public class PostEntity {
 	private String content;
 
 	@Column(length = 500)
-	private String imageUrl; // URL hình ảnh đính kèm
+	private String imageUrl; // URL hình ảnh đính kèm (deprecated, dùng images)
+
+	@Lob
+	@Column(columnDefinition = "TEXT")
+	private String images; // JSON array of image URLs: ["url1", "url2", ...]
 
 	@Column(length = 500)
 	private String fileUrl; // URL file đính kèm
@@ -79,6 +83,10 @@ public class PostEntity {
 	public void setTitle(String title) { this.title = title; }
 	public String getContent() { return content; }
 	public void setContent(String content) { this.content = content; }
+	public String getImageUrl() { return imageUrl; }
+	public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+	public String getImages() { return images; }
+	public void setImages(String images) { this.images = images; }
 	public Boolean getAnonymous() { return isAnonymous; }
 	public void setAnonymous(Boolean anonymous) { isAnonymous = anonymous; }
 	public Boolean getBlocked() { return isBlocked; }

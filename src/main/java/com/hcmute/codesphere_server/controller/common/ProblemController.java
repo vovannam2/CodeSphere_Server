@@ -80,9 +80,25 @@ public class ProblemController {
 
     @GetMapping("/{id}")
     public ResponseEntity<DataResponse<ProblemDetailResponse>> getProblemById(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @RequestParam(required = false) Long contestId,
+            Authentication authentication) {
         
         try {
+            // Nếu có contestId, validate contest access
+            if (contestId != null) {
+                Long userId = null;
+                if (authentication != null && authentication.isAuthenticated()) {
+                    try {
+                        UserPrinciple userPrinciple = (UserPrinciple) authentication.getPrincipal();
+                        userId = Long.parseLong(userPrinciple.getUserId());
+                    } catch (Exception e) {
+                        // Ignore
+                    }
+                }
+                problemService.validateContestAccess(contestId, userId);
+            }
+            
             ProblemDetailResponse problem = problemService.getProblemById(id);
             return ResponseEntity.ok(DataResponse.success(problem));
         } catch (RuntimeException e) {

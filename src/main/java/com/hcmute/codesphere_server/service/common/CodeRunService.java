@@ -86,7 +86,7 @@ public class CodeRunService {
                     request.getCodeContent(),
                     languageCode,
                     problem.getTimeLimitMs(),
-                    problem.getMemoryLimitMb()
+                    256 // Default memory limit: 256MB
             );
             
             if (!compileResult.isSuccess()) {
@@ -120,7 +120,7 @@ public class CodeRunService {
                     languageCode,
                     testCase.getInput(),
                     problem.getTimeLimitMs(),
-                    problem.getMemoryLimitMb()
+                    256 // Default memory limit: 256MB
             );
 
             String actualOutput = result.getStdout() != null ? result.getStdout() : "";
@@ -155,7 +155,7 @@ public class CodeRunService {
                         languageCode,
                         customTestCase.getInput(),
                         problem.getTimeLimitMs(),
-                        problem.getMemoryLimitMb()
+                        256 // Default memory limit: 256MB
                 );
 
                 String actualOutput = result.getStdout() != null ? result.getStdout() : "";

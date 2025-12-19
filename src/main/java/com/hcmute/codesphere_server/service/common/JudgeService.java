@@ -87,7 +87,7 @@ public class JudgeService {
                         submission.getCodeContent(),
                         languageCode,
                         submission.getProblem().getTimeLimitMs(),
-                        submission.getProblem().getMemoryLimitMb()
+                        256 // Default memory limit: 256MB
                 );
                 
                 if (!compileResult.isSuccess()) {
@@ -137,7 +137,7 @@ public class JudgeService {
                         languageCode,
                         testCase.getInput(),
                         submission.getProblem().getTimeLimitMs(),
-                        submission.getProblem().getMemoryLimitMb()
+                        256 // Default memory limit: 256MB
                 );
 
                 log.info("📊 Test case {} result: success={}, stdout='{}', stderr='{}', runtime={}ms", 

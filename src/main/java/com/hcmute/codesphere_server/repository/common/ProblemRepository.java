@@ -11,9 +11,7 @@ import java.util.Optional;
 
 @Repository
 public interface ProblemRepository extends JpaRepository<ProblemEntity, Long>, JpaSpecificationExecutor<ProblemEntity> {
-    Optional<ProblemEntity> findBySlug(String slug);
     Optional<ProblemEntity> findByCode(String code);
-    boolean existsBySlug(String slug);
     boolean existsByCode(String code);
     
     @Query("SELECT p FROM ProblemEntity p WHERE p.id = :id AND p.status = true")

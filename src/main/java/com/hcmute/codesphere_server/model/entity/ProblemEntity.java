@@ -11,7 +11,6 @@ import java.util.Set;
 
 @Entity
 @Table(name = "problems", indexes = {
-	@Index(name = "idx_problem_slug", columnList = "slug"),
 	@Index(name = "idx_problem_code", columnList = "code"),
 	@Index(name = "idx_problem_author", columnList = "author_id"),
 	@Index(name = "idx_problem_level", columnList = "level")
@@ -32,9 +31,6 @@ public class ProblemEntity {
 	@Column(nullable = false, length = 200)
 	private String title;
 
-	@Column(nullable = false, unique = true, length = 220)
-	private String slug;
-
 	@Lob
 	@Column(columnDefinition = "MEDIUMTEXT")
 	private String content;
@@ -42,17 +38,12 @@ public class ProblemEntity {
 	@Column(nullable = false, length = 10)
 	private String level; // EASY/MEDIUM/HARD
 
-	@Lob
-	private String sampleInput; // Dùng để hiển thị ở description frontend
-
-	@Lob
-	private String sampleOutput; // Dùng để hiển thị ở description frontend
-
 	@Column(nullable = false)
 	private Integer timeLimitMs = 2000;
 
-	@Column(nullable = false)
-	private Integer memoryLimitMb = 256;
+	@Column(nullable = false, name = "memory_limit_mb")
+	@Builder.Default
+	private Integer memoryLimitMb = 256; // Default: 256MB
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "author_id", nullable = false)
@@ -60,6 +51,14 @@ public class ProblemEntity {
 
 	@Column(nullable = false)
 	private Boolean status = true;
+
+	@Column(nullable = false)
+	@Builder.Default
+	private Boolean isPublic = true; // false = premium content (chỉ user pro mới thấy)
+
+	@Column(nullable = false)
+	@Builder.Default
+	private Boolean isContest = false; // true = contest-only (không hiện ở ProblemsPage, có thể dùng lại cho nhiều contest)
 
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt = Instant.now();
@@ -94,16 +93,10 @@ public class ProblemEntity {
 	public void setCode(String code) { this.code = code; }
 	public String getTitle() { return title; }
 	public void setTitle(String title) { this.title = title; }
-	public String getSlug() { return slug; }
-	public void setSlug(String slug) { this.slug = slug; }
 	public String getContent() { return content; }
 	public void setContent(String content) { this.content = content; }
 	public String getLevel() { return level; }
 	public void setLevel(String level) { this.level = level; }
-	public String getSampleInput() { return sampleInput; }
-	public void setSampleInput(String sampleInput) { this.sampleInput = sampleInput; }
-	public String getSampleOutput() { return sampleOutput; }
-	public void setSampleOutput(String sampleOutput) { this.sampleOutput = sampleOutput; }
 	public Integer getTimeLimitMs() { return timeLimitMs; }
 	public void setTimeLimitMs(Integer timeLimitMs) { this.timeLimitMs = timeLimitMs; }
 	public Integer getMemoryLimitMb() { return memoryLimitMb; }
@@ -112,6 +105,10 @@ public class ProblemEntity {
 	public void setAuthor(UserEntity author) { this.author = author; }
 	public Boolean getStatus() { return status; }
 	public void setStatus(Boolean status) { this.status = status; }
+	public Boolean getIsPublic() { return isPublic; }
+	public void setIsPublic(Boolean isPublic) { this.isPublic = isPublic; }
+	public Boolean getIsContest() { return isContest; }
+	public void setIsContest(Boolean isContest) { this.isContest = isContest; }
 	public Instant getCreatedAt() { return createdAt; }
 	public Instant getUpdatedAt() { return updatedAt; }
 	public Set<TagEntity> getTags() { return tags; }

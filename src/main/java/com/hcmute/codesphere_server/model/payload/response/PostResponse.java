@@ -18,7 +18,8 @@ public class PostResponse {
     private Long id;
     private String title;
     private String content;
-    private String imageUrl;
+    private String imageUrl; // Deprecated, use images
+    private List<String> images; // List of image URLs
     private String fileUrl;
     private String fileName;
     private String fileType;

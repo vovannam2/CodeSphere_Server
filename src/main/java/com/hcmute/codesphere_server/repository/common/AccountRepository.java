@@ -15,4 +15,6 @@ public interface AccountRepository extends JpaRepository<AccountEntity, Long>, J
     AccountEntity findAccountByEmail(@Param("email") String email);
 
     boolean existsByEmail(String email);
+
+    Optional<AccountEntity> findByUser(com.hcmute.codesphere_server.model.entity.UserEntity user);
 }

@@ -17,11 +17,8 @@ public class ProblemDetailResponse {
     private Long id;
     private String code;
     private String title;
-    private String slug;
     private String content; // Đề bài đầy đủ
     private String level; // EASY/MEDIUM/HARD
-    private String sampleInput;
-    private String sampleOutput;
     private Integer timeLimitMs;
     private Integer memoryLimitMb;
     private Long authorId;
@@ -29,6 +26,5 @@ public class ProblemDetailResponse {
     private List<CategoryResponse> categories;
     private List<TagResponse> tags;
     private List<LanguageResponse> languages;
-    // Không cần sampleTestCases - đã có sampleInput và sampleOutput ở trên
 }
 

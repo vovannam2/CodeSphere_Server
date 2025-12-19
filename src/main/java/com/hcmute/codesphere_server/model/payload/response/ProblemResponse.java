@@ -17,7 +17,6 @@ public class ProblemResponse {
     private Long id;
     private String code;
     private String title;
-    private String slug;
     private String level; // EASY/MEDIUM/HARD
     private Integer timeLimitMs;
     private Integer memoryLimitMb;
@@ -26,6 +25,10 @@ public class ProblemResponse {
     private List<CategoryResponse> categories;
     private List<TagResponse> tags;
     private List<LanguageResponse> languages;
+    
+    // Thông tin trạng thái của problem (cho admin)
+    private Boolean isPublic; // true = public, false = premium/private
+    private Boolean isContest; // true = contest-only
     
     // Thông tin trạng thái của user (chỉ có khi user đã đăng nhập)
     private Boolean isBookmarked; // Đã đánh dấu sao chưa (độc lập, có thể kết hợp với bất kỳ status nào)

@@ -26,6 +26,7 @@ public class SubmissionController {
     @PostMapping
     public ResponseEntity<DataResponse<SubmissionDetailResponse>> createSubmission(
             @Valid @RequestBody CreateSubmissionRequest request,
+            @RequestParam(required = false) Long contestId,
             Authentication authentication) {
         
         // Kiểm tra authentication
@@ -38,7 +39,7 @@ public class SubmissionController {
             UserPrinciple userPrinciple = (UserPrinciple) authentication.getPrincipal();
             Long userId = Long.parseLong(userPrinciple.getUserId());
             
-            SubmissionDetailResponse submission = submissionService.createSubmission(request, userId);
+            SubmissionDetailResponse submission = submissionService.createSubmission(request, userId, contestId);
             return ResponseEntity.ok(DataResponse.success(submission));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()

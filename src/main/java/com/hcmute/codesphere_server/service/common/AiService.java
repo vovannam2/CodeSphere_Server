@@ -58,7 +58,7 @@ public class AiService {
                     problem.getTitle(),
                     problem.getContent() != null ? problem.getContent().substring(0, Math.min(500, problem.getContent().length())) : "",
                     problem.getTimeLimitMs(),
-                    problem.getMemoryLimitMb()
+                    256 // Default memory limit: 256MB
                 );
             } catch (Exception e) {
                 log.warn("Could not fetch problem context: {}", e.getMessage());
@@ -138,7 +138,7 @@ public class AiService {
                     problem.getTitle(),
                     problem.getContent() != null ? problem.getContent().substring(0, Math.min(500, problem.getContent().length())) : "",
                     problem.getTimeLimitMs(),
-                    problem.getMemoryLimitMb()
+                    256 // Default memory limit: 256MB
                 );
             } catch (Exception e) {
                 log.warn("Could not fetch problem context: {}", e.getMessage());
@@ -209,7 +209,7 @@ public class AiService {
                         problem.getTitle(),
                         problem.getContent() != null ? problem.getContent().substring(0, Math.min(1000, problem.getContent().length())) : "",
                         problem.getTimeLimitMs(),
-                        problem.getMemoryLimitMb(),
+                        256, // Default memory limit: 256MB
                         request.getLanguage() != null ? request.getLanguage() : "N/A",
                         request.getCode() != null ? request.getCode().substring(0, Math.min(500, request.getCode().length())) : "Chưa có code"
                     );
