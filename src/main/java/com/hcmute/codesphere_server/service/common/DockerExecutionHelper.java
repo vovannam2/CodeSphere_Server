@@ -140,7 +140,8 @@ public class DockerExecutionHelper {
 
             // 4. Tạo container với volume mount
             long memoryBytes = (memoryLimitMb != null ? memoryLimitMb : 256L) * 1024 * 1024;
-            int timeoutSeconds = (timeLimitMs != null ? timeLimitMs : 5000) / 1000 + 1;
+            // Tăng timeout cho compile: ít nhất 60 giây hoặc dựa trên timeLimitMs
+            int timeoutSeconds = Math.max(60, (timeLimitMs != null ? timeLimitMs : 30000) / 1000 + 10);
 
             containerId = createContainerWithMount(config.image, compileCommand, 
                     hostPath, memoryBytes, timeoutSeconds);
@@ -220,7 +221,8 @@ public class DockerExecutionHelper {
 
             // 3. Tạo container với volume mount
             long memoryBytes = (memoryLimitMb != null ? memoryLimitMb : 256L) * 1024 * 1024;
-            int timeoutSeconds = (timeLimitMs != null ? timeLimitMs : 2000) / 1000 + 1;
+            // Tăng timeout cho run: ít nhất 30 giây hoặc dựa trên timeLimitMs
+            int timeoutSeconds = Math.max(30, (timeLimitMs != null ? timeLimitMs : 10000) / 1000 + 5);
 
             containerId = createContainerWithMount(config.image, actualCommand, 
                     hostPath, memoryBytes, timeoutSeconds);
@@ -387,7 +389,29 @@ public class DockerExecutionHelper {
             dockerClient.waitContainerCmd(containerId).exec(waitCallback);
             
             // Chờ mã thoát với timeout
-            Integer exitCode = waitCallback.awaitStatusCode(timeoutSeconds, TimeUnit.SECONDS);
+            Integer exitCode = null;
+            try {
+                exitCode = waitCallback.awaitStatusCode(timeoutSeconds, TimeUnit.SECONDS);
+            } catch (com.github.dockerjava.api.exception.DockerClientException e) {
+                // Timeout xảy ra - force stop container
+                log.warn("⚠️ Container timeout after {} seconds, forcing stop...", timeoutSeconds);
+                try {
+                    dockerClient.stopContainerCmd(containerId).withTimeout(5).exec();
+                    // Đợi container dừng
+                    Thread.sleep(500);
+                    // Thử lấy exit code một lần nữa với timeout ngắn
+                    WaitContainerResultCallback retryCallback = new WaitContainerResultCallback();
+                    dockerClient.waitContainerCmd(containerId).exec(retryCallback);
+                    exitCode = retryCallback.awaitStatusCode(2, TimeUnit.SECONDS);
+                } catch (Exception stopEx) {
+                    log.error("❌ Failed to stop container: {}", stopEx.getMessage());
+                }
+                if (exitCode == null) {
+                    // Nếu vẫn không lấy được exit code, trả về timeout error
+                    String stderrStr = stderr.toString().trim();
+                    return ExecutionResult.error(stderrStr, "Execution timeout after " + timeoutSeconds + " seconds", -1);
+                }
+            }
             
             // Đợi một chút để đảm bảo đọc hết output
             Thread.sleep(200);
@@ -405,6 +429,12 @@ public class DockerExecutionHelper {
 
         } catch (Exception e) {
             log.error("❌ Lỗi khi thực thi trong container: {}", e.getMessage(), e);
+            // Đảm bảo container được dừng khi có lỗi
+            try {
+                dockerClient.stopContainerCmd(containerId).withTimeout(5).exec();
+            } catch (Exception stopEx) {
+                log.warn("⚠️ Failed to stop container on error: {}", stopEx.getMessage());
+            }
             String stderrStr = stderr.toString().trim();
             return ExecutionResult.error(stderrStr, "Execution failed: " + e.getMessage(), -1);
         }

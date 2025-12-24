@@ -14,6 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import com.hcmute.codesphere_server.model.payload.response.ProblemResponse;
 import com.hcmute.codesphere_server.model.entity.ProblemEntity;
 import com.hcmute.codesphere_server.repository.common.ProblemRepository;
@@ -30,6 +31,8 @@ public class AdminProblemController {
     public ResponseEntity<DataResponse<Page<ProblemResponse>>> getAllProblems(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean isPublic,
             Authentication authentication) {
         
         if (authentication == null || !authentication.isAuthenticated()) {
@@ -48,7 +51,29 @@ public class AdminProblemController {
 
         try {
             Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-            Page<ProblemEntity> problems = problemRepository.findAll(pageable);
+            
+            // Build query with filters
+            Specification<ProblemEntity> spec = Specification.where(null);
+            
+            // Search filter (by title or code)
+            if (search != null && !search.trim().isEmpty()) {
+                String searchTerm = "%" + search.trim().toLowerCase() + "%";
+                Specification<ProblemEntity> searchSpec = (root, query, cb) -> 
+                    cb.or(
+                        cb.like(cb.lower(root.get("title")), searchTerm),
+                        cb.like(cb.lower(root.get("code")), searchTerm)
+                    );
+                spec = spec.and(searchSpec);
+            }
+            
+            // Visibility filter
+            if (isPublic != null) {
+                Specification<ProblemEntity> visibilitySpec = (root, query, cb) -> 
+                    cb.equal(root.get("isPublic"), isPublic);
+                spec = spec.and(visibilitySpec);
+            }
+            
+            Page<ProblemEntity> problems = problemRepository.findAll(spec, pageable);
             // Map to ProblemResponse với đầy đủ thông tin
             Page<ProblemResponse> response = problems.map(p -> {
                 ProblemResponse.ProblemResponseBuilder builder = ProblemResponse.builder()
@@ -67,7 +92,8 @@ public class AdminProblemController {
                                     .id(cat.getId())
                                     .name(cat.getName())
                                     .slug(cat.getSlug())
-                                    .parentId(cat.getParent() != null ? cat.getParent().getId() : null)
+                                    .parentId(null)
+                                    .parentName(null)
                                     .build())
                             .collect(java.util.stream.Collectors.toList()));
                 }
@@ -84,9 +110,8 @@ public class AdminProblemController {
                             .collect(java.util.stream.Collectors.toList()));
                 }
                 
-                // Thêm isPublic và isContest cho admin
-                builder.isPublic(p.getIsPublic())
-                       .isContest(p.getIsContest());
+                // Thêm isPublic cho admin
+                builder.isPublic(p.getIsPublic());
                 
                 return builder.build();
             });
@@ -181,6 +206,34 @@ public class AdminProblemController {
         try {
             ProblemDetailResponse response = adminProblemService.updateProblem(id, request);
             return ResponseEntity.ok(DataResponse.success(response));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(DataResponse.error(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<DataResponse<String>> deleteProblem(
+            @PathVariable Long id,
+            Authentication authentication) {
+        
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401)
+                    .body(DataResponse.error("Unauthorized"));
+        }
+
+        UserPrinciple userPrinciple = (UserPrinciple) authentication.getPrincipal();
+        boolean isAdmin = userPrinciple.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
+        
+        if (!isAdmin) {
+            return ResponseEntity.status(403)
+                    .body(DataResponse.error("Forbidden"));
+        }
+
+        try {
+            adminProblemService.deleteProblem(id);
+            return ResponseEntity.ok(DataResponse.success("Problem deleted successfully"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(DataResponse.error(e.getMessage()));

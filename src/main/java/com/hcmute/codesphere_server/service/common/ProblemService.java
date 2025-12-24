@@ -34,7 +34,6 @@ public class ProblemService {
     public Page<ProblemResponse> getProblems(
             String level,
             String categorySlug,
-            String tagSlug,
             String languageCode,
             String bookmarkStatus, // "bookmarked", "not_bookmarked", "all" hoặc null
             String status, // "NOT_ATTEMPTED", "ATTEMPTED_NOT_COMPLETED", "COMPLETED", "all" hoặc null
@@ -43,7 +42,7 @@ public class ProblemService {
             Pageable pageable) {
         
         Specification<ProblemEntity> spec = buildSpecification(
-                level, categorySlug, tagSlug, languageCode, 
+                level, categorySlug, languageCode, 
                 bookmarkStatus, status, searchQuery, userId);
         
         Page<ProblemEntity> problems = problemRepository.findAll(spec, pageable);
@@ -195,11 +194,10 @@ public class ProblemService {
         ProblemEntity problem = problemRepository.findByIdAndStatusTrue(problemId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy bài tập"));
         
-        // Lấy sample testcases (isSample = true, isHidden = false)
+        // Lấy sample testcases (isSample = true) - chỉ để hiển thị cho user, không dùng để chấm điểm
         List<TestCaseEntity> testCases = testCaseRepository.findAllTestCasesByProblemId(problemId)
                 .stream()
-                .filter(tc -> tc.getIsSample() != null && tc.getIsSample() && 
-                             tc.getIsHidden() != null && !tc.getIsHidden())
+                .filter(tc -> tc.getIsSample() != null && tc.getIsSample())
                 .collect(Collectors.toList());
         
         return testCases.stream()
@@ -224,7 +222,6 @@ public class ProblemService {
     private Specification<ProblemEntity> buildSpecification(
             String level,
             String categorySlug,
-            String tagSlug,
             String languageCode,
             String bookmarkStatus,
             String status,
@@ -236,10 +233,8 @@ public class ProblemService {
             
             // Chỉ lấy bài tập active
             predicates.add(cb.equal(root.get("status"), true));
-            // Chỉ hiện problems public (isPublic = true)
+            // Chỉ hiện problems public (isPublic = true) - loại bỏ contest-only problems
             predicates.add(cb.equal(root.get("isPublic"), true));
-            // Chỉ hiện problems thường (isContest = false) - loại bỏ contest-only problems
-            predicates.add(cb.equal(root.get("isContest"), false));
             
             // Filter theo level
             if (level != null && !level.isEmpty()) {
@@ -250,12 +245,6 @@ public class ProblemService {
             if (categorySlug != null && !categorySlug.isEmpty()) {
                 Join<ProblemEntity, CategoryEntity> categoryJoin = root.join("categories");
                 predicates.add(cb.equal(categoryJoin.get("slug"), categorySlug));
-            }
-            
-            // Filter theo tag
-            if (tagSlug != null && !tagSlug.isEmpty()) {
-                Join<ProblemEntity, TagEntity> tagJoin = root.join("tags");
-                predicates.add(cb.equal(tagJoin.get("slug"), tagSlug));
             }
             
             // Search query - chỉ tìm trong title
@@ -320,9 +309,6 @@ public class ProblemService {
                 .categories(entity.getCategories().stream()
                         .map(this::mapToCategoryResponse)
                         .collect(Collectors.toList()))
-                .tags(entity.getTags().stream()
-                        .map(this::mapToTagResponse)
-                        .collect(Collectors.toList()))
                 .languages(entity.getLanguages().stream()
                         .map(this::mapToLanguageResponse)
                         .collect(Collectors.toList()))
@@ -346,9 +332,6 @@ public class ProblemService {
                 .categories(entity.getCategories().stream()
                         .map(this::mapToCategoryResponse)
                         .collect(Collectors.toList()))
-                .tags(entity.getTags().stream()
-                        .map(this::mapToTagResponse)
-                        .collect(Collectors.toList()))
                 .languages(entity.getLanguages().stream()
                         .map(this::mapToLanguageResponse)
                         .collect(Collectors.toList()))
@@ -371,18 +354,11 @@ public class ProblemService {
                 .id(entity.getId())
                 .name(entity.getName())
                 .slug(entity.getSlug())
-                .parentId(entity.getParent() != null ? entity.getParent().getId() : null)
-                .parentName(entity.getParent() != null ? entity.getParent().getName() : null)
+                .parentId(null)
+                .parentName(null)
                 .build();
     }
 
-    private TagResponse mapToTagResponse(TagEntity entity) {
-        return TagResponse.builder()
-                .id(entity.getId())
-                .name(entity.getName())
-                .slug(entity.getSlug())
-                .build();
-    }
 
     private LanguageResponse mapToLanguageResponse(LanguageEntity entity) {
         return LanguageResponse.builder()

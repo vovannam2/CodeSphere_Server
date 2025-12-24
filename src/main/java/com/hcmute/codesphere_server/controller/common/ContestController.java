@@ -1,6 +1,7 @@
 package com.hcmute.codesphere_server.controller.common;
 
 import com.hcmute.codesphere_server.model.payload.request.RegisterContestRequest;
+import com.hcmute.codesphere_server.model.payload.request.VerifyAccessCodeRequest;
 import com.hcmute.codesphere_server.model.payload.response.*;
 import com.hcmute.codesphere_server.security.authentication.UserPrinciple;
 import com.hcmute.codesphere_server.service.common.ContestService;
@@ -208,6 +209,21 @@ public class ContestController {
         try {
             List<ContestRegistrationResponse> registrations = contestService.getContestRegistrations(id);
             return ResponseEntity.ok(DataResponse.success(registrations));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(DataResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/verify-access-code")
+    public ResponseEntity<DataResponse<ContestResponse>> verifyAccessCode(
+            @Valid @RequestBody VerifyAccessCodeRequest request,
+            Authentication authentication) {
+        
+        try {
+            Long userId = getUserId(authentication);
+            ContestResponse contest = contestService.verifyAccessCodeAndGetContest(request.getAccessCode(), userId);
+            return ResponseEntity.ok(DataResponse.success(contest));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(DataResponse.error(e.getMessage()));

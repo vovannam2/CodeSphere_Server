@@ -68,46 +68,46 @@ public class AiService {
             String systemPrompt;
             String userMessage;
             
-            // Nếu có suggestions cụ thể, tối ưu prompt để chỉ refactor theo suggestions đó
+            // If there are specific suggestions, optimize prompt to refactor only according to those suggestions
             if (request.getSuggestions() != null && !request.getSuggestions().isEmpty()) {
                 String suggestionsText = String.join("\n\n", request.getSuggestions());
                 systemPrompt = String.format(
-                    "Bạn là một trợ lý refactor code chuyên nghiệp. Nhiệm vụ của bạn là refactor code CHỈ theo các gợi ý cụ thể sau:\n\n" +
-                    "Các gợi ý cần refactor:\n%s\n\n" +
-                    "Yêu cầu:\n" +
-                    "1. Chỉ refactor các phần code liên quan đến các gợi ý trên\n" +
-                    "2. Giữ nguyên các phần code không liên quan\n" +
-                    "3. Tuân thủ best practices của ngôn ngữ %s\n" +
-                    "4. Giữ nguyên logic và functionality\n" +
-                    "5. Thêm comments giải thích nếu cần\n\n" +
-                    "Context về problem:\n%s\n\n" +
-                    "Chỉ trả về code đã refactor, không giải thích thêm.",
+                    "You are a professional code refactoring assistant. Your task is to refactor code ONLY according to the following specific suggestions:\n\n" +
+                    "Refactoring suggestions:\n%s\n\n" +
+                    "Requirements:\n" +
+                    "1. Only refactor code sections related to the above suggestions\n" +
+                    "2. Keep unrelated code sections unchanged\n" +
+                    "3. Follow best practices for %s language\n" +
+                    "4. Maintain logic and functionality\n" +
+                    "5. Add explanatory comments if needed\n\n" +
+                    "Problem context:\n%s\n\n" +
+                    "Return only the refactored code, no additional explanations.",
                     suggestionsText,
                     request.getLanguage(),
                     problemContext
                 );
                 userMessage = String.format(
-                    "Hãy refactor code sau đây (ngôn ngữ: %s) theo các gợi ý đã nêu:\n\n```%s\n%s\n```",
+                    "Please refactor the following code (language: %s) according to the stated suggestions:\n\n```%s\n%s\n```",
                     request.getLanguage(),
                     request.getLanguage(),
                     request.getCode()
                 );
             } else {
-                // Refactor toàn bộ như cũ
+                // Refactor entire code as before
                 systemPrompt = String.format(
-                    "Bạn là một trợ lý refactor code chuyên nghiệp. Nhiệm vụ của bạn là refactor code đã cho để:\n" +
-                    "1. Cải thiện khả năng đọc và maintainability\n" +
-                    "2. Tối ưu hiệu suất nếu có thể\n" +
-                    "3. Tuân thủ best practices của ngôn ngữ %s\n" +
-                    "4. Giữ nguyên logic và functionality\n" +
-                    "5. Thêm comments giải thích nếu cần\n\n" +
-                    "Context về problem:\n%s\n\n" +
-                    "Chỉ trả về code đã refactor, không giải thích thêm.",
+                    "You are a professional code refactoring assistant. Your task is to refactor the given code to:\n" +
+                    "1. Improve readability and maintainability\n" +
+                    "2. Optimize performance if possible\n" +
+                    "3. Follow best practices for %s language\n" +
+                    "4. Maintain logic and functionality\n" +
+                    "5. Add explanatory comments if needed\n\n" +
+                    "Problem context:\n%s\n\n" +
+                    "Return only the refactored code, no additional explanations.",
                     request.getLanguage(),
                     problemContext
                 );
                 userMessage = String.format(
-                    "Hãy refactor code sau đây (ngôn ngữ: %s):\n\n```%s\n%s\n```",
+                    "Please refactor the following code (language: %s):\n\n```%s\n%s\n```",
                     request.getLanguage(),
                     request.getLanguage(),
                     request.getCode()
@@ -123,7 +123,7 @@ public class AiService {
 
         } catch (Exception e) {
             log.error("Error refactoring code: {}", e.getMessage(), e);
-            throw new RuntimeException("Không thể refactor code: " + e.getMessage(), e);
+            throw new RuntimeException("Unable to refactor code: " + e.getMessage(), e);
         }
     }
 
@@ -144,32 +144,32 @@ public class AiService {
                 log.warn("Could not fetch problem context: {}", e.getMessage());
             }
 
-            // Tạo system prompt cho code review
+            // Create system prompt for code review
             String systemPrompt = String.format(
-                "Bạn là một chuyên gia code review chuyên nghiệp. Nhiệm vụ của bạn là đánh giá code đã cho và đưa ra nhận xét chi tiết.\n\n" +
-                "QUAN TRỌNG: Bạn PHẢI trả về kết quả theo format sau (mỗi mục phải bắt đầu bằng số thứ tự và **bold title**):\n\n" +
-                "1. **Cách đặt tên biến và hàm**\n" +
-                "[Nội dung đánh giá về cách đặt tên biến và hàm]\n\n" +
-                "2. **Cấu trúc code**\n" +
-                "[Nội dung đánh giá về cấu trúc code]\n\n" +
-                "3. **Best practices**\n" +
-                "[Nội dung đánh giá về best practices của ngôn ngữ %s]\n\n" +
-                "4. **Hiệu suất**\n" +
-                "[Nội dung đánh giá về hiệu suất, nếu có vấn đề]\n\n" +
-                "5. **Điểm mạnh**\n" +
-                "[Những điểm tốt của code]\n\n" +
-                "6. **Điểm cần cải thiện**\n" +
-                "[Những điểm cần cải thiện và gợi ý cụ thể]\n\n" +
-                "Context về problem:\n%s\n\n" +
-                "Hãy đánh giá một cách chi tiết, khách quan và hữu ích. Trả lời bằng tiếng Việt. " +
-                "Đảm bảo mỗi mục bắt đầu bằng số thứ tự và **bold title**.",
+                "You are a professional code review expert. Your task is to review the given code and provide detailed feedback.\n\n" +
+                "IMPORTANT: You MUST return the result in the following format (each item must start with a number and **bold title**):\n\n" +
+                "1. **Variable and Function Naming**\n" +
+                "[Review content about variable and function naming]\n\n" +
+                "2. **Code Structure**\n" +
+                "[Review content about code structure]\n\n" +
+                "3. **Best Practices**\n" +
+                "[Review content about best practices for %s language]\n\n" +
+                "4. **Performance**\n" +
+                "[Review content about performance, if there are any issues]\n\n" +
+                "5. **Strengths**\n" +
+                "[Positive aspects of the code]\n\n" +
+                "6. **Areas for Improvement**\n" +
+                "[Areas that need improvement and specific suggestions]\n\n" +
+                "Problem context:\n%s\n\n" +
+                "Please provide a detailed, objective, and helpful review. Respond in English. " +
+                "Ensure each item starts with a number and **bold title**.",
                 request.getLanguage(),
                 problemContext
             );
 
-            // Tạo user message
+            // Create user message
             String userMessage = String.format(
-                "Hãy đánh giá code sau đây (ngôn ngữ: %s) theo format đã yêu cầu:\n\n```%s\n%s\n```",
+                "Please review the following code (language: %s) according to the requested format:\n\n```%s\n%s\n```",
                 request.getLanguage(),
                 request.getLanguage(),
                 request.getCode()
@@ -184,7 +184,7 @@ public class AiService {
 
         } catch (Exception e) {
             log.error("Error reviewing code: {}", e.getMessage(), e);
-            throw new RuntimeException("Không thể đánh giá code: " + e.getMessage(), e);
+            throw new RuntimeException("Unable to review code: " + e.getMessage(), e);
         }
     }
 
@@ -198,35 +198,35 @@ public class AiService {
                 try {
                     var problem = problemService.getProblemById(request.getProblemId());
                     systemPrompt = String.format(
-                        "Bạn là một trợ lý coding chuyên giúp giải các bài competitive programming.\n\n" +
-                        "Context về problem hiện tại:\n" +
+                        "You are a coding assistant specialized in helping solve competitive programming problems.\n\n" +
+                        "Current problem context:\n" +
                         "- Title: %s\n" +
                         "- Description: %s\n" +
                         "- Constraints: Time limit: %dms, Memory: %dMB\n" +
                         "- Language: %s\n" +
                         "- Current code: %s\n\n" +
-                        "Hãy trả lời câu hỏi của user dựa trên context này. Nếu user hỏi về code, hãy phân tích code hiện tại.",
+                        "Please answer the user's questions based on this context. If the user asks about code, analyze the current code.",
                         problem.getTitle(),
                         problem.getContent() != null ? problem.getContent().substring(0, Math.min(1000, problem.getContent().length())) : "",
                         problem.getTimeLimitMs(),
                         256, // Default memory limit: 256MB
                         request.getLanguage() != null ? request.getLanguage() : "N/A",
-                        request.getCode() != null ? request.getCode().substring(0, Math.min(500, request.getCode().length())) : "Chưa có code"
+                        request.getCode() != null ? request.getCode().substring(0, Math.min(500, request.getCode().length())) : "No code yet"
                     );
                 } catch (Exception e) {
                     log.warn("Could not fetch problem context: {}", e.getMessage());
-                    systemPrompt = "Bạn là một trợ lý coding chuyên giúp giải các bài competitive programming.";
+                    systemPrompt = "You are a coding assistant specialized in helping solve competitive programming problems.";
                 }
             } else {
-                // Chat tổng quát
-                systemPrompt = "Bạn là một trợ lý coding chuyên nghiệp. Hãy giúp user với các câu hỏi về lập trình, algorithms, data structures, và best practices.";
+                // General chat
+                systemPrompt = "You are a professional coding assistant. Help the user with questions about programming, algorithms, data structures, and best practices.";
             }
 
             return callOpenAIAPI(systemPrompt, userMessage);
 
         } catch (Exception e) {
             log.error("Error in chat: {}", e.getMessage(), e);
-            throw new RuntimeException("Không thể xử lý chat: " + e.getMessage(), e);
+            throw new RuntimeException("Unable to process chat: " + e.getMessage(), e);
         }
     }
 
@@ -240,7 +240,7 @@ public class AiService {
             // Validate API key
             if (openaiApiKey == null || openaiApiKey.isEmpty()) {
                 log.error("OpenAI API key is not configured!");
-                throw new RuntimeException("OpenAI API key chưa được cấu hình. Vui lòng set biến môi trường OPENAI_API_KEY");
+                throw new RuntimeException("OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable");
             }
             
             HttpHeaders headers = new HttpHeaders();
@@ -324,7 +324,7 @@ public class AiService {
             log.error("HTTP error calling OpenAI API: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             
             // Try to parse error message from OpenAI API
-            String errorMessage = "Lỗi khi gọi OpenAI API";
+            String errorMessage = "Error calling OpenAI API";
             try {
                 String responseBody = e.getResponseBodyAsString();
                 if (responseBody != null && responseBody.contains("error")) {
@@ -334,22 +334,22 @@ public class AiService {
                         if (error.has("message")) {
                             String apiErrorMessage = error.get("message").asText();
                             
-                            // Translate common errors to Vietnamese
+                            // Translate common errors to English
                             if (apiErrorMessage.contains("insufficient_quota") || apiErrorMessage.contains("You exceeded your current quota")) {
-                                errorMessage = "Tài khoản OpenAI API không đủ credits. Vui lòng nạp thêm credits tại https://platform.openai.com/account/billing";
+                                errorMessage = "OpenAI API account has insufficient credits. Please add credits at https://platform.openai.com/account/billing";
                             } else if (apiErrorMessage.contains("Invalid API key") || apiErrorMessage.contains("Incorrect API key")) {
-                                errorMessage = "API key không hợp lệ. Vui lòng kiểm tra lại biến môi trường OPENAI_API_KEY";
+                                errorMessage = "Invalid API key. Please check the OPENAI_API_KEY environment variable";
                             } else if (apiErrorMessage.contains("rate limit")) {
-                                errorMessage = "Đã vượt quá giới hạn requests. Vui lòng thử lại sau.";
+                                errorMessage = "Rate limit exceeded. Please try again later.";
                             } else {
-                                errorMessage = "Lỗi từ OpenAI API: " + apiErrorMessage;
+                                errorMessage = "Error from OpenAI API: " + apiErrorMessage;
                             }
                         }
                     }
                 }
             } catch (Exception parseEx) {
                 log.warn("Could not parse error response: {}", parseEx.getMessage());
-                errorMessage = "Lỗi khi gọi OpenAI API: " + e.getStatusCode() + " - " + e.getResponseBodyAsString();
+                errorMessage = "Error calling OpenAI API: " + e.getStatusCode() + " - " + e.getResponseBodyAsString();
             }
             
             throw new RuntimeException(errorMessage);
@@ -358,7 +358,7 @@ public class AiService {
             if (e.getCause() != null) {
                 log.error("Cause: {}", e.getCause().getMessage());
             }
-            throw new RuntimeException("Lỗi khi gọi OpenAI API: " + e.getMessage(), e);
+            throw new RuntimeException("Error calling OpenAI API: " + e.getMessage(), e);
         }
     }
 }

@@ -13,6 +13,7 @@ import com.hcmute.codesphere_server.repository.common.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -113,9 +114,9 @@ public class AdminContestService {
 
                 contestProblemRepository.save(contestProblem);
                 
-                // Tự động set isContest = true để problem không hiện ở ProblemsPage
-                if (!Boolean.TRUE.equals(problem.getIsContest())) {
-                    problem.setIsContest(true);
+                // Tự động set isPublic = false để problem không hiện ở ProblemsPage (contest-only)
+                if (Boolean.TRUE.equals(problem.getIsPublic())) {
+                    problem.setIsPublic(false);
                     problemRepository.save(problem);
                 }
             }
@@ -205,8 +206,15 @@ public class AdminContestService {
         ContestEntity contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new RuntimeException("Contest không tồn tại"));
 
-        // Soft delete
+        // Chỉ soft delete contest, giữ nguyên tất cả dữ liệu liên quan
+        // - contest_submissions: giữ lại để có lịch sử
+        // - contest_registrations: giữ lại để có lịch sử
+        // - contest_problems: giữ lại để có thể khôi phục contest
+        
         contest.setIsDeleted(true);
+        contest.setIsPublic(false); // Ẩn khỏi public
+        contest.setIsHidden(true);   // Ẩn khỏi danh sách
+        contest.setUpdatedAt(Instant.now());
         contestRepository.save(contest);
     }
 
@@ -247,9 +255,9 @@ public class AdminContestService {
 
         contestProblemRepository.save(contestProblem);
         
-        // Tự động set isContest = true để problem không hiện ở ProblemsPage
-        if (!Boolean.TRUE.equals(problem.getIsContest())) {
-            problem.setIsContest(true);
+        // Tự động set isPublic = false để problem không hiện ở ProblemsPage (contest-only)
+        if (Boolean.TRUE.equals(problem.getIsPublic())) {
+            problem.setIsPublic(false);
             problemRepository.save(problem);
         }
     }
@@ -268,9 +276,34 @@ public class AdminContestService {
         return contestRegistrationRepository.findByContestId(contestId);
     }
 
-    public Page<ContestResponse> getContests(Pageable pageable) {
-        // Admin thấy tất cả contests (kể cả đã xóa và ẩn)
-        return contestRepository.findAll(pageable)
+    public Page<ContestResponse> getContests(Pageable pageable, String search, String type) {
+        // Admin thấy tất cả contests (cả public và private, kể cả đã xóa và ẩn)
+        // Không filter theo isPublic - admin cần thấy tất cả để quản lý
+        // Chỉ filter để loại bỏ các contest đã bị xóa (isDeleted = true)
+        Specification<ContestEntity> spec = (root, query, cb) -> 
+                cb.equal(root.get("isDeleted"), false);
+        
+        // Filter by search (title)
+        if (search != null && !search.trim().isEmpty()) {
+            String lowerCaseSearch = search.toLowerCase();
+            Specification<ContestEntity> searchSpec = (root, query, cb) ->
+                    cb.like(cb.lower(root.get("title")), "%" + lowerCaseSearch + "%");
+            spec = spec.and(searchSpec);
+        }
+        
+        // Filter by contest type
+        if (type != null && !type.trim().isEmpty()) {
+            try {
+                ContestType contestType = ContestType.valueOf(type.toUpperCase());
+                Specification<ContestEntity> typeSpec = (root, query, cb) ->
+                        cb.equal(root.get("contestType"), contestType);
+                spec = spec.and(typeSpec);
+            } catch (IllegalArgumentException e) {
+                // Invalid contest type, ignore filter
+            }
+        }
+        
+        return contestRepository.findAll(spec, pageable)
                 .map(contest -> mapToContestResponse(contest, null));
     }
     

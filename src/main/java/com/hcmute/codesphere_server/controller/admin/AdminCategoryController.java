@@ -9,10 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("${base.url}/admin/categories")
@@ -45,6 +42,34 @@ public class AdminCategoryController {
         try {
             CategoryResponse response = adminCategoryService.createCategory(request);
             return ResponseEntity.ok(DataResponse.success(response));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(DataResponse.error(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<DataResponse<String>> deleteCategory(
+            @PathVariable Long id,
+            Authentication authentication) {
+        
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401)
+                    .body(DataResponse.error("Unauthorized"));
+        }
+
+        UserPrinciple userPrinciple = (UserPrinciple) authentication.getPrincipal();
+        boolean isAdmin = userPrinciple.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
+        
+        if (!isAdmin) {
+            return ResponseEntity.status(403)
+                    .body(DataResponse.error("Forbidden"));
+        }
+
+        try {
+            adminCategoryService.deleteCategory(id);
+            return ResponseEntity.ok(DataResponse.success("Category deleted successfully"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(DataResponse.error(e.getMessage()));

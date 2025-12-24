@@ -54,23 +54,13 @@ public class ProblemEntity {
 
 	@Column(nullable = false)
 	@Builder.Default
-	private Boolean isPublic = true; // false = premium content (chỉ user pro mới thấy)
-
-	@Column(nullable = false)
-	@Builder.Default
-	private Boolean isContest = false; // true = contest-only (không hiện ở ProblemsPage, có thể dùng lại cho nhiều contest)
+	private Boolean isPublic = true; // true = public (hiện trong problem list), false = contest-only (ẩn khỏi problem list)
 
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt = Instant.now();
 
 	@Column(nullable = false)
 	private Instant updatedAt = Instant.now();
-
-	@ManyToMany
-	@JoinTable(name = "problem_tags",
-			joinColumns = @JoinColumn(name = "problem_id"),
-			inverseJoinColumns = @JoinColumn(name = "tag_id"))
-	private Set<TagEntity> tags = new HashSet<>();
 
 	@ManyToMany
 	@JoinTable(name = "problem_categories",
@@ -107,12 +97,8 @@ public class ProblemEntity {
 	public void setStatus(Boolean status) { this.status = status; }
 	public Boolean getIsPublic() { return isPublic; }
 	public void setIsPublic(Boolean isPublic) { this.isPublic = isPublic; }
-	public Boolean getIsContest() { return isContest; }
-	public void setIsContest(Boolean isContest) { this.isContest = isContest; }
 	public Instant getCreatedAt() { return createdAt; }
 	public Instant getUpdatedAt() { return updatedAt; }
-	public Set<TagEntity> getTags() { return tags; }
-	public void setTags(Set<TagEntity> tags) { this.tags = tags; }
 	public Set<CategoryEntity> getCategories() { return categories; }
 	public void setCategories(Set<CategoryEntity> categories) { this.categories = categories; }
 	public Set<LanguageEntity> getLanguages() { return languages; }

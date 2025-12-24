@@ -28,7 +28,6 @@ public class ProblemController {
     public ResponseEntity<DataResponse<Page<ProblemResponse>>> getProblems(
             @RequestParam(required = false) String level,
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String tag,
             @RequestParam(required = false) String language,
             @RequestParam(required = false) String bookmarkStatus, // "bookmarked", "not_bookmarked", "all"
             @RequestParam(required = false) String status, // "NOT_ATTEMPTED", "ATTEMPTED_NOT_COMPLETED", "COMPLETED", "all"
@@ -67,7 +66,7 @@ public class ProblemController {
             }
             
             Page<ProblemResponse> problems = problemService.getProblems(
-                    level, category, tag, language, 
+                    level, category, language, 
                     bookmarkStatus, status, search, userId, 
                     pageable);
             

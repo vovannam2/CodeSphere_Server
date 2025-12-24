@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Judge Service sử dụng Docker để chạy code
@@ -53,11 +54,15 @@ public class JudgeService {
             SubmissionEntity submission = submissionRepository.findById(submissionId)
                     .orElseThrow(() -> new RuntimeException("Submission not found"));
 
-            // Lấy tất cả test cases của problem
+            // Lấy test cases để chấm điểm: chỉ lấy testcases có isSample = false AND isHidden = false
             List<TestCaseEntity> testCases = testCaseRepository.findAllTestCasesByProblemId(
-                    submission.getProblem().getId());
+                    submission.getProblem().getId())
+                    .stream()
+                    .filter(tc -> (tc.getIsSample() == null || !tc.getIsSample()) && 
+                                  (tc.getIsHidden() == null || !tc.getIsHidden()))
+                    .collect(Collectors.toList());
 
-            log.info("📋 Found {} test cases for submission {}", testCases.size(), submissionId);
+            log.info("📋 Found {} test cases for submission {} (excluding sample and hidden testcases)", testCases.size(), submissionId);
 
             if (testCases.isEmpty()) {
                 log.warn("⚠️ No test cases found for submission {}", submissionId);

@@ -110,8 +110,12 @@ public class SecurityConfig {
                 // Public endpoints - không cần token
                 .requestMatchers(
                         "/api/v1/auth/register",
+                        "/api/v1/auth/register/init",
+                        "/api/v1/auth/register/verify",
                         "/api/v1/auth/login",
                         "/api/v1/auth/google",
+                        "/api/v1/auth/forgot-password/init",
+                        "/api/v1/auth/forgot-password/verify",
                         "/api/v1/auth/test-token",
                         "/api/v1/languages/**",      // GET languages (public)
                         "/api/v1/categories/**",     // GET categories (public)

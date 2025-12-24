@@ -1,6 +1,7 @@
 package com.hcmute.codesphere_server.service.admin;
 
 import com.hcmute.codesphere_server.model.entity.*;
+import com.hcmute.codesphere_server.model.enums.ContestType;
 import com.hcmute.codesphere_server.model.payload.request.CreateProblemRequest;
 import com.hcmute.codesphere_server.model.payload.response.ProblemDetailResponse;
 import com.hcmute.codesphere_server.repository.common.*;
@@ -9,7 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -20,8 +23,8 @@ public class AdminProblemService {
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
-    private final TagRepository tagRepository;
     private final LanguageRepository languageRepository;
+    private final ContestProblemRepository contestProblemRepository;
 
     @Transactional
     public ProblemDetailResponse createProblem(CreateProblemRequest request, Long authorId) {
@@ -41,16 +44,6 @@ public class AdminProblemService {
                 CategoryEntity category = categoryRepository.findById(categoryId)
                         .orElseThrow(() -> new RuntimeException("Category với ID " + categoryId + " không tồn tại"));
                 categories.add(category);
-            }
-        }
-
-        // Validate và lấy tags (optional)
-        Set<TagEntity> tags = new HashSet<>();
-        if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
-            for (Long tagId : request.getTagIds()) {
-                TagEntity tag = tagRepository.findById(tagId)
-                        .orElseThrow(() -> new RuntimeException("Tag với ID " + tagId + " không tồn tại"));
-                tags.add(tag);
             }
         }
 
@@ -82,11 +75,9 @@ public class AdminProblemService {
                 .author(author)
                 .status(true)
                 .isPublic(request.getIsPublic() != null ? request.getIsPublic() : true)
-                .isContest(request.getIsContest() != null ? request.getIsContest() : false)
                 .createdAt(now)
                 .updatedAt(now)
                 .categories(categories)
-                .tags(tags)
                 .languages(languages)
                 .build();
 
@@ -116,16 +107,6 @@ public class AdminProblemService {
             }
         }
 
-        // Validate và lấy tags (optional)
-        Set<TagEntity> tags = new HashSet<>();
-        if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
-            for (Long tagId : request.getTagIds()) {
-                TagEntity tag = tagRepository.findById(tagId)
-                        .orElseThrow(() -> new RuntimeException("Tag với ID " + tagId + " không tồn tại"));
-                tags.add(tag);
-            }
-        }
-
         // Validate và lấy languages
         Set<LanguageEntity> languages = new HashSet<>();
         if (request.getLanguageIds() != null && !request.getLanguageIds().isEmpty()) {
@@ -142,6 +123,53 @@ public class AdminProblemService {
             throw new RuntimeException("Level phải là EASY, MEDIUM hoặc HARD");
         }
 
+        // Kiểm tra nếu đang thay đổi từ contest-only (isPublic = false) sang public (isPublic = true)
+        boolean changingToPublic = request.getIsPublic() != null && request.getIsPublic();
+        boolean wasContestOnly = Boolean.FALSE.equals(problem.getIsPublic());
+        
+        if (changingToPublic && wasContestOnly) {
+            // Kiểm tra problem có đang trong OFFICIAL contest chưa kết thúc không
+            List<ContestProblemEntity> contestProblems = contestProblemRepository.findByProblemId(problemId);
+            List<String> ongoingOfficialContests = new ArrayList<>();
+            List<String> upcomingOfficialContests = new ArrayList<>();
+            Instant now = Instant.now();
+            
+            for (ContestProblemEntity cp : contestProblems) {
+                ContestEntity contest = cp.getContest();
+                
+                // CHỈ KIỂM TRA OFFICIAL CONTEST (bỏ qua PRACTICE)
+                if (contest.getContestType() == ContestType.OFFICIAL) {
+                    // Kiểm tra contest chưa kết thúc
+                    if (contest.getEndTime() != null && now.isBefore(contest.getEndTime())) {
+                        if (contest.getStartTime() != null && now.isBefore(contest.getStartTime())) {
+                            // Contest chưa bắt đầu
+                            upcomingOfficialContests.add(contest.getTitle());
+                        } else {
+                            // Contest đang diễn ra
+                            ongoingOfficialContests.add(contest.getTitle());
+                        }
+                    }
+                }
+                // Bỏ qua PRACTICE contest - không cần validation
+            }
+            
+            if (!ongoingOfficialContests.isEmpty()) {
+                throw new RuntimeException(
+                    "Cannot change problem to public. It is currently used in ongoing OFFICIAL contest(s): " + 
+                    String.join(", ", ongoingOfficialContests) + 
+                    ". Please wait until contests end or remove it from contests first."
+                );
+            }
+            
+            if (!upcomingOfficialContests.isEmpty()) {
+                throw new RuntimeException(
+                    "Cannot change problem to public. It is scheduled for upcoming OFFICIAL contest(s): " + 
+                    String.join(", ", upcomingOfficialContests) + 
+                    ". Please remove it from contests first or wait until contests end."
+                );
+            }
+        }
+
         // Cập nhật problem
         problem.setCode(request.getCode().toUpperCase());
         problem.setTitle(request.getTitle());
@@ -150,10 +178,8 @@ public class AdminProblemService {
         problem.setTimeLimitMs(request.getTimeLimitMs() != null ? request.getTimeLimitMs() : 2000);
         problem.setMemoryLimitMb(request.getMemoryLimitMb() != null ? request.getMemoryLimitMb() : 256);
         problem.setIsPublic(request.getIsPublic() != null ? request.getIsPublic() : true);
-        problem.setIsContest(request.getIsContest() != null ? request.getIsContest() : false);
         problem.setUpdatedAt(Instant.now());
         problem.setCategories(categories);
-        problem.setTags(tags);
         problem.setLanguages(languages);
 
         problem = problemRepository.save(problem);
@@ -167,6 +193,30 @@ public class AdminProblemService {
         return mapToProblemDetailResponse(problem);
     }
 
+    @Transactional
+    public void deleteProblem(Long problemId) {
+        ProblemEntity problem = problemRepository.findById(problemId)
+                .orElseThrow(() -> new RuntimeException("Problem không tồn tại"));
+
+        // Kiểm tra problem có đang được dùng trong contest không
+        List<ContestProblemEntity> contestProblems = contestProblemRepository.findByProblemId(problemId);
+        if (!contestProblems.isEmpty()) {
+            List<String> contestNames = contestProblems.stream()
+                    .map(cp -> cp.getContest().getTitle())
+                    .distinct()
+                    .collect(Collectors.toList());
+            
+            throw new RuntimeException(
+                "Cannot delete problem. It is currently used in " + contestProblems.size() + 
+                " contest(s): " + String.join(", ", contestNames) + 
+                ". Please remove it from contests first."
+            );
+        }
+
+        // Xóa problem
+        problemRepository.delete(problem);
+    }
+
     private ProblemDetailResponse mapToProblemDetailResponse(ProblemEntity entity) {
         return ProblemDetailResponse.builder()
                 .id(entity.getId())
@@ -178,20 +228,14 @@ public class AdminProblemService {
                 .memoryLimitMb(entity.getMemoryLimitMb())
                 .authorId(entity.getAuthor() != null ? entity.getAuthor().getId() : null)
                 .authorName(entity.getAuthor() != null ? entity.getAuthor().getUsername() : null)
+                .isPublic(entity.getIsPublic())
                 .categories(entity.getCategories().stream()
                         .map(cat -> com.hcmute.codesphere_server.model.payload.response.CategoryResponse.builder()
                                 .id(cat.getId())
                                 .name(cat.getName())
                                 .slug(cat.getSlug())
-                                .parentId(cat.getParent() != null ? cat.getParent().getId() : null)
-                                .parentName(cat.getParent() != null ? cat.getParent().getName() : null)
-                                .build())
-                        .collect(Collectors.toList()))
-                .tags(entity.getTags().stream()
-                        .map(tag -> com.hcmute.codesphere_server.model.payload.response.TagResponse.builder()
-                                .id(tag.getId())
-                                .name(tag.getName())
-                                .slug(tag.getSlug())
+                                .parentId(null)
+                                .parentName(null)
                                 .build())
                         .collect(Collectors.toList()))
                 .languages(entity.getLanguages().stream()

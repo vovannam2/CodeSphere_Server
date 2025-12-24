@@ -18,5 +18,8 @@ public interface ContestProblemRepository extends JpaRepository<ContestProblemEn
 
     @Query("SELECT cp FROM ContestProblemEntity cp WHERE cp.contest.id = :contestId AND cp.problem.id = :problemId")
     Optional<ContestProblemEntity> findByContestIdAndProblemId(@Param("contestId") Long contestId, @Param("problemId") Long problemId);
+    
+    @Query("SELECT cp FROM ContestProblemEntity cp WHERE cp.problem.id = :problemId")
+    List<ContestProblemEntity> findByProblemId(@Param("problemId") Long problemId);
 }
 

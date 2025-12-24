@@ -38,6 +38,8 @@ public class AdminContestController {
     public ResponseEntity<DataResponse<Page<ContestResponse>>> getContests(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String type,
             Authentication authentication) {
 
         if (!isAdmin(authentication)) {
@@ -47,7 +49,7 @@ public class AdminContestController {
 
         try {
             Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-            Page<ContestResponse> contests = adminContestService.getContests(pageable);
+            Page<ContestResponse> contests = adminContestService.getContests(pageable, search, type);
             return ResponseEntity.ok(DataResponse.success(contests));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()

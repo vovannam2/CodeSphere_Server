@@ -42,9 +42,67 @@ public class ContestService {
 
         // Filter by public/private
         if (isPublic != null) {
-            Specification<ContestEntity> publicSpec = (root, query, cb) ->
-                    cb.equal(root.get("isPublic"), isPublic);
-            spec = spec.and(publicSpec);
+            if (isPublic) {
+                // Chỉ lấy public contests
+                Specification<ContestEntity> publicSpec = (root, query, cb) ->
+                        cb.equal(root.get("isPublic"), true);
+                spec = spec.and(publicSpec);
+            } else {
+                // isPublic = false: chỉ lấy private contests mà user đã register
+                if (userId != null) {
+                    List<Long> registeredContestIds = contestRegistrationRepository.findByUserId(userId)
+                            .stream()
+                            .map(cr -> cr.getContest().getId())
+                            .collect(Collectors.toList());
+                    
+                    if (registeredContestIds.isEmpty()) {
+                        // Nếu user chưa register private contest nào, trả về empty
+                        spec = spec.and((root, query, cb) -> cb.equal(root.get("id"), -1L)); // Always false condition
+                    } else {
+                        // Chỉ trả về private contests mà user đã register
+                        Specification<ContestEntity> privateSpec = (root, query, cb) ->
+                                cb.and(
+                                        cb.equal(root.get("isPublic"), false),
+                                        root.get("id").in(registeredContestIds)
+                                );
+                        spec = spec.and(privateSpec);
+                    }
+                } else {
+                    // User chưa đăng nhập, không trả về private contests
+                    spec = spec.and((root, query, cb) -> cb.equal(root.get("id"), -1L)); // Always false condition
+                }
+            }
+        } else {
+            // Nếu không filter isPublic (lấy cả public và private)
+            // Chỉ trả về private contests nếu user đã register
+            if (userId != null) {
+                // Lấy danh sách contest IDs mà user đã register
+                List<Long> registeredContestIds = contestRegistrationRepository.findByUserId(userId)
+                        .stream()
+                        .map(cr -> cr.getContest().getId())
+                        .collect(Collectors.toList());
+                
+                // Filter: public contests HOẶC private contests mà user đã register
+                Specification<ContestEntity> visibilitySpec = (root, query, cb) -> {
+                    if (registeredContestIds.isEmpty()) {
+                        // Nếu user chưa register contest nào, chỉ trả về public
+                        return cb.equal(root.get("isPublic"), true);
+                    } else {
+                        // Trả về public HOẶC private contests mà user đã register
+                        return cb.or(
+                                cb.equal(root.get("isPublic"), true),
+                                cb.and(
+                                        cb.equal(root.get("isPublic"), false),
+                                        root.get("id").in(registeredContestIds)
+                                )
+                        );
+                    }
+                };
+                spec = spec.and(visibilitySpec);
+            } else {
+                // Nếu user chưa đăng nhập, chỉ trả về public contests
+                spec = spec.and((root, query, cb) -> cb.equal(root.get("isPublic"), true));
+            }
         }
 
         // Filter by contestType
@@ -163,6 +221,39 @@ public class ContestService {
                 .endedAt(endedAt)
                 .problems(visibleProblems)
                 .build();
+    }
+
+    @Transactional
+    public ContestResponse verifyAccessCodeAndGetContest(String accessCode, Long userId) {
+        // Tìm contest có access code khớp
+        List<ContestEntity> contests = contestRepository.findAll()
+                .stream()
+                .filter(c -> !c.getIsDeleted() && 
+                             !c.getIsHidden() &&
+                             !c.getIsPublic() &&
+                             c.getAccessCode() != null &&
+                             c.getAccessCode().equals(accessCode))
+                .collect(Collectors.toList());
+        
+        if (contests.isEmpty()) {
+            throw new RuntimeException("Invalid access code or contest not found");
+        }
+        
+        ContestEntity contest = contests.get(0);
+        
+        // Kiểm tra user đã register chưa, nếu chưa thì tự động register
+        if (userId != null && !contestRegistrationRepository.existsByContestIdAndUserId(contest.getId(), userId)) {
+            // Tự động register user vào contest
+            RegisterContestRequest registerRequest = new RegisterContestRequest();
+            registerRequest.setAccessCode(accessCode);
+            try {
+                registerContest(contest.getId(), userId, registerRequest);
+            } catch (Exception e) {
+                // Nếu register fail, vẫn trả về contest để user có thể thử lại
+            }
+        }
+        
+        return mapToContestResponse(contest, userId);
     }
 
     @Transactional
@@ -430,6 +521,8 @@ public class ContestService {
         ContestEntity contest = contestRepository.findById(contestId)
                 .orElseThrow(() -> new RuntimeException("Contest không tồn tại"));
         
+        Instant now = Instant.now();
+        
         // Get all registrations for this contest
         List<ContestRegistrationEntity> registrations = contestRegistrationRepository.findByContestId(contestId);
         
@@ -455,8 +548,15 @@ public class ContestService {
             // Get all submissions for this user in this contest
             List<ContestSubmissionEntity> allContestSubmissions = contestSubmissionRepository.findByContestIdAndUserId(contestId, userId);
             
-            if (contest.getContestType() == ContestType.PRACTICE && registration.getBestStartedAt() != null && registration.getBestEndedAt() != null) {
-                // PRACTICE: Sử dụng best attempt - chỉ tính submissions trong khoảng thời gian của best attempt
+            // Kiểm tra xem user có đang làm bài không (PRACTICE contest)
+            boolean isCurrentlyActive = contest.getContestType() == ContestType.PRACTICE
+                    && registration.getStartedAt() != null
+                    && registration.getEndedAt() != null
+                    && now.isAfter(registration.getStartedAt())
+                    && now.isBefore(registration.getEndedAt());
+            
+            if (contest.getContestType() == ContestType.PRACTICE && registration.getBestStartedAt() != null && registration.getBestEndedAt() != null && !isCurrentlyActive) {
+                // PRACTICE: Đã finish - Sử dụng best attempt - chỉ tính submissions trong khoảng thời gian của best attempt
                 Instant bestStart = registration.getBestStartedAt();
                 Instant bestEnd = registration.getBestEndedAt();
                 
@@ -493,6 +593,55 @@ public class ContestService {
                 totalScore = registration.getBestTotalScore() != null ? registration.getBestTotalScore() : totalScore;
                 completionTimeSeconds = registration.getBestCompletionTimeSeconds();
                 completedAt = registration.getBestEndedAt();
+            } else if (isCurrentlyActive) {
+                // PRACTICE: Đang làm bài - tính real-time từ submissions trong attempt hiện tại
+                Instant currentStart = registration.getStartedAt();
+                Instant currentEnd = registration.getEndedAt();
+                
+                List<ContestSubmissionEntity> currentAttemptSubmissions = allContestSubmissions.stream()
+                        .filter(cs -> {
+                            Instant subTime = cs.getSubmittedAt();
+                            return (subTime.isAfter(currentStart) || subTime.equals(currentStart))
+                                    && (subTime.isBefore(currentEnd) || subTime.equals(currentEnd));
+                        })
+                        .collect(Collectors.toList());
+                
+                for (ContestSubmissionEntity cs : currentAttemptSubmissions) {
+                    SubmissionEntity submission = cs.getSubmission();
+                    Long problemId = submission.getProblem().getId();
+                    String order = problemOrderMap.get(problemId);
+                    
+                    if (order != null) {
+                        Integer currentScore = problemScores.get(order);
+                        Integer submissionScore = cs.getScore() != null ? cs.getScore() : (submission.getIsAccepted() ? 100 : 0);
+                        
+                        if (currentScore == null || submissionScore > currentScore) {
+                            problemScores.put(order, submissionScore);
+                            totalScore = totalScore - (currentScore != null ? currentScore : 0) + submissionScore;
+                        }
+
+                        if (lastSubmissionTime == null || cs.getSubmittedAt().isAfter(lastSubmissionTime)) {
+                            lastSubmissionTime = cs.getSubmittedAt();
+                        }
+                        totalSubmissions++;
+                    }
+                }
+                
+                // Tính completedAt và completionTimeSeconds cho attempt hiện tại
+                if (registration.getEndedAt() != null && registration.getStartedAt() != null) {
+                    Instant expectedEndTime = registration.getStartedAt().plus(contest.getDurationMinutes(), java.time.temporal.ChronoUnit.MINUTES);
+                    
+                    if (registration.getEndedAt().isBefore(expectedEndTime)) {
+                        completedAt = registration.getEndedAt();
+                        long seconds = java.time.Duration.between(registration.getStartedAt(), registration.getEndedAt()).getSeconds();
+                        completionTimeSeconds = seconds;
+                    } else {
+                        completedAt = registration.getEndedAt();
+                        completionTimeSeconds = null;
+                    }
+                } else if (lastSubmissionTime != null) {
+                    completedAt = lastSubmissionTime;
+                }
             } else {
                 // OFFICIAL hoặc PRACTICE chưa có best attempt: tính từ tất cả submissions
                 for (ContestSubmissionEntity cs : allContestSubmissions) {

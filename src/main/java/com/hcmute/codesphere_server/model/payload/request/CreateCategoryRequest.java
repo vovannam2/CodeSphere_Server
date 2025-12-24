@@ -11,10 +11,6 @@ public class CreateCategoryRequest {
     @Size(max = 120, message = "Tên category không được vượt quá 120 ký tự")
     private String name;
     
-    @NotBlank(message = "Slug không được để trống")
-    @Size(max = 150, message = "Slug không được vượt quá 150 ký tự")
-    private String slug;
-    
-    private Long parentId; // Optional: null nếu là root category
+    // Slug sẽ được tự động tạo từ name, không cần nhập
 }
 

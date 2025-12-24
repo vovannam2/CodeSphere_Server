@@ -32,13 +32,9 @@ public class CreateProblemRequest {
     @NotNull(message = "Category IDs không được để trống")
     private List<Long> categoryIds; // Danh sách category IDs
     
-    private List<Long> tagIds; // Danh sách tag IDs (optional)
-    
     @NotNull(message = "Language IDs không được để trống")
     private List<Long> languageIds; // Danh sách language IDs
     
-    private Boolean isPublic = true; // true = public, false = premium content
-    
-    private Boolean isContest = false; // true = contest-only (không hiện ở ProblemsPage)
+    private Boolean isPublic = true; // true = public (hiện trong problem list), false = contest-only (ẩn khỏi problem list)
 }
 

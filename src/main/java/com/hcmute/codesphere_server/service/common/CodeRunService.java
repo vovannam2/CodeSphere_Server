@@ -63,11 +63,10 @@ public class CodeRunService {
         List<RunCodeRequest.CustomTestCase> customTestCases = request.getCustomTestCases();
         boolean hasCustomTestCases = customTestCases != null && !customTestCases.isEmpty();
         
-        // Lấy sample testcases (isSample = true và isHidden = false)
+        // Lấy sample testcases (isSample = true) - để user test code, không dùng để chấm điểm
         List<TestCaseEntity> sampleTestCases = testCaseRepository.findAllTestCasesByProblemId(request.getProblemId())
                 .stream()
-                .filter(tc -> tc.getIsSample() != null && tc.getIsSample() && 
-                             tc.getIsHidden() != null && !tc.getIsHidden())
+                .filter(tc -> tc.getIsSample() != null && tc.getIsSample())
                 .toList();
 
         // Nếu không có sample testcases và không có custom testcases, throw error

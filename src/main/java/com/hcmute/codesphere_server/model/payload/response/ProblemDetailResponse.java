@@ -23,8 +23,8 @@ public class ProblemDetailResponse {
     private Integer memoryLimitMb;
     private Long authorId;
     private String authorName;
+    private Boolean isPublic; // true = public (hiện trong problem list), false = contest-only (ẩn khỏi problem list)
     private List<CategoryResponse> categories;
-    private List<TagResponse> tags;
     private List<LanguageResponse> languages;
 }
 

@@ -23,12 +23,10 @@ public class ProblemResponse {
     private Long authorId;
     private String authorName;
     private List<CategoryResponse> categories;
-    private List<TagResponse> tags;
     private List<LanguageResponse> languages;
     
     // Thông tin trạng thái của problem (cho admin)
-    private Boolean isPublic; // true = public, false = premium/private
-    private Boolean isContest; // true = contest-only
+    private Boolean isPublic; // true = public (hiện trong problem list), false = contest-only (ẩn khỏi problem list)
     
     // Thông tin trạng thái của user (chỉ có khi user đã đăng nhập)
     private Boolean isBookmarked; // Đã đánh dấu sao chưa (độc lập, có thể kết hợp với bất kỳ status nào)

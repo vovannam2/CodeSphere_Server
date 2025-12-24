@@ -205,7 +205,7 @@ public class AiController {
             ReviewCodeResponse response = aiService.reviewCode(request);
             return ResponseEntity.ok(DataResponse.<ReviewCodeResponse>builder()
                     .status("success")
-                    .message("Đánh giá code thành công")
+                    .message("Code review completed successfully")
                     .data(response)
                     .build());
 
@@ -213,7 +213,7 @@ public class AiController {
             return ResponseEntity.status(500)
                     .body(DataResponse.<ReviewCodeResponse>builder()
                             .status("error")
-                            .message("Lỗi khi đánh giá code: " + e.getMessage())
+                            .message("Error reviewing code: " + e.getMessage())
                             .data(null)
                             .build());
         }
