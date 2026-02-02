@@ -47,6 +47,8 @@ public class NotificationEntity {
 
     private Long relatedConversationId; // Conversation liên quan
 
+    private Long relatedContestId; // Contest liên quan
+
     @Column(nullable = false)
     private Boolean isRead = false;
 
@@ -62,7 +64,8 @@ public class NotificationEntity {
         POST_LIKE,
         POST_COMMENT,
         COMMENT_REPLY,
-        MESSAGE
+        MESSAGE,
+        CONTEST_REMINDER
     }
 }
 

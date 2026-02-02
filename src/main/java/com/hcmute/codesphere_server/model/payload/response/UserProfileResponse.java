@@ -27,5 +27,7 @@ public class UserProfileResponse {
     private Boolean isBlocked;
     private Instant createdAt;
     private Instant updatedAt;
+    private Long completedProblems; // Số bài tập đã hoàn thành (AC)
+    private Long contestsParticipated; // Số contest đã tham gia
 }
 

@@ -198,6 +198,48 @@ public class AdminContestService {
 
         contest = contestRepository.save(contest);
 
+        // Update problems: Xóa tất cả problems cũ và thêm lại từ request
+        if (request.getProblems() != null) {
+            // Xóa tất cả problems hiện tại của contest
+            List<ContestProblemEntity> existingProblems = contestProblemRepository.findByContestIdOrderByProblemOrder(contestId);
+            for (ContestProblemEntity cp : existingProblems) {
+                contestProblemRepository.delete(cp);
+            }
+
+            // Thêm lại problems mới từ request
+            if (!request.getProblems().isEmpty()) {
+                for (ContestProblemRequest cpReq : request.getProblems()) {
+                    ProblemEntity problem = problemRepository.findById(cpReq.getProblemId())
+                            .orElseThrow(() -> new RuntimeException("Problem với ID " + cpReq.getProblemId() + " không tồn tại"));
+
+                    // Validate problem: phải active (status = true)
+                    if (!Boolean.TRUE.equals(problem.getStatus())) {
+                        throw new RuntimeException("Problem với ID " + cpReq.getProblemId() + " không active (status = false)");
+                    }
+
+                    ContestProblemKey key = new ContestProblemKey();
+                    key.setContestId(contest.getId());
+                    key.setProblemId(problem.getId());
+
+                    ContestProblemEntity contestProblem = ContestProblemEntity.builder()
+                            .id(key)
+                            .contest(contest)
+                            .problem(problem)
+                            .problemOrder(cpReq.getOrder().toUpperCase())
+                            .points(cpReq.getPoints() != null ? cpReq.getPoints() : 100)
+                            .build();
+
+                    contestProblemRepository.save(contestProblem);
+                    
+                    // Tự động set isPublic = false để problem không hiện ở ProblemsPage (contest-only)
+                    if (Boolean.TRUE.equals(problem.getIsPublic())) {
+                        problem.setIsPublic(false);
+                        problemRepository.save(problem);
+                    }
+                }
+            }
+        }
+
         return mapToContestDetailResponse(contest, null);
     }
 

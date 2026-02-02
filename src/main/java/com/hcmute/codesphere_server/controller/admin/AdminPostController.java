@@ -1,23 +1,24 @@
 package com.hcmute.codesphere_server.controller.admin;
 
-import com.hcmute.codesphere_server.model.payload.request.CreateLanguageRequest;
-import com.hcmute.codesphere_server.model.payload.request.UpdateLanguageRequest;
+import com.hcmute.codesphere_server.model.entity.PostEntity;
 import com.hcmute.codesphere_server.model.payload.response.DataResponse;
-import com.hcmute.codesphere_server.model.payload.response.LanguageResponse;
 import com.hcmute.codesphere_server.security.authentication.UserPrinciple;
-import com.hcmute.codesphere_server.service.admin.AdminLanguageService;
-import jakarta.validation.Valid;
+import com.hcmute.codesphere_server.service.admin.AdminPostService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("${base.url}/admin/languages")
+@RequestMapping("${base.url}/admin/posts")
 @RequiredArgsConstructor
-public class AdminLanguageController {
+public class AdminPostController {
 
-    private final AdminLanguageService adminLanguageService;
+    private final AdminPostService adminPostService;
 
     private boolean isAdmin(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
@@ -28,39 +29,23 @@ public class AdminLanguageController {
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
     }
 
-    @PostMapping
-    public ResponseEntity<DataResponse<LanguageResponse>> createLanguage(
-            @Valid @RequestBody CreateLanguageRequest request,
+    @GetMapping
+    public ResponseEntity<DataResponse<Page<PostEntity>>> getPosts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String isBlocked,
             Authentication authentication) {
-        
+
         if (!isAdmin(authentication)) {
             return ResponseEntity.status(403)
                     .body(DataResponse.error("Forbidden - Chỉ admin mới có quyền thực hiện thao tác này"));
         }
 
         try {
-            LanguageResponse response = adminLanguageService.createLanguage(request);
-            return ResponseEntity.ok(DataResponse.success(response));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest()
-                    .body(DataResponse.error(e.getMessage()));
-        }
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<DataResponse<LanguageResponse>> updateLanguage(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateLanguageRequest request,
-            Authentication authentication) {
-        
-        if (!isAdmin(authentication)) {
-            return ResponseEntity.status(403)
-                    .body(DataResponse.error("Forbidden - Chỉ admin mới có quyền thực hiện thao tác này"));
-        }
-
-        try {
-            LanguageResponse response = adminLanguageService.updateLanguage(id, request);
-            return ResponseEntity.ok(DataResponse.success(response));
+            Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+            Page<PostEntity> posts = adminPostService.getPosts(pageable, search, isBlocked);
+            return ResponseEntity.ok(DataResponse.success(posts));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(DataResponse.error(e.getMessage()));
@@ -68,18 +53,37 @@ public class AdminLanguageController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<DataResponse<String>> deleteLanguage(
+    public ResponseEntity<DataResponse<String>> deletePost(
             @PathVariable Long id,
             Authentication authentication) {
-        
+
         if (!isAdmin(authentication)) {
             return ResponseEntity.status(403)
                     .body(DataResponse.error("Forbidden - Chỉ admin mới có quyền thực hiện thao tác này"));
         }
 
         try {
-            adminLanguageService.deleteLanguage(id);
-            return ResponseEntity.ok(DataResponse.success("Xóa ngôn ngữ thành công"));
+            adminPostService.deletePost(id);
+            return ResponseEntity.ok(DataResponse.success("Xóa post thành công"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body(DataResponse.error(e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/toggle-block")
+    public ResponseEntity<DataResponse<String>> toggleBlock(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        if (!isAdmin(authentication)) {
+            return ResponseEntity.status(403)
+                    .body(DataResponse.error("Forbidden - Chỉ admin mới có quyền thực hiện thao tác này"));
+        }
+
+        try {
+            adminPostService.toggleBlock(id);
+            return ResponseEntity.ok(DataResponse.success("Thay đổi trạng thái block thành công"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(DataResponse.error(e.getMessage()));

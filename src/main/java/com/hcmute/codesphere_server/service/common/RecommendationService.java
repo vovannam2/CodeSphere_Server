@@ -49,7 +49,7 @@ public class RecommendationService {
                 
                 // Gọi Python API
                 String url = mlApiUrl + "/recommendations/" + userId + "?limit=" + limit + "&use_openai=" + (useOpenAI != null && useOpenAI);
-                
+                //http://localhost:8000/recommendations/{userId}?limit=10&use_openai=true
                 ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                     url,
                     HttpMethod.GET,

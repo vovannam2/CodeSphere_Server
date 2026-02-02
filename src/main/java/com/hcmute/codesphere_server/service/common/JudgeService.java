@@ -37,10 +37,12 @@ public class JudgeService {
     private final DockerExecutionHelper dockerExecutionHelper;
     private final UserProblemBestService userProblemBestService;
     private final EntityManager entityManager;
+    private final ContestSubmissionRepository contestSubmissionRepository;
+    private final ContestProblemRepository contestProblemRepository;
 
     // Mapping language code - giữ nguyên để tương thích
     private static final Set<String> SUPPORTED_LANGUAGES = Set.of(
-            "java", "python", "cpp", "c", "javascript"
+            "java", "python", "cpp", "c", "javascript", "node", "php"
     );
 
     /**
@@ -180,9 +182,12 @@ public class JudgeService {
                         .status(passed ? "PASSED" : "FAILED")
                         .runtimeMs((int) result.getRuntimeMs())
                         .memoryKb(result.getMemoryKb() > 0 ? (int) result.getMemoryKb() : null)
-                        .stdout(result.getStdout())
-                        .stderr(result.getStderr() != null ? result.getStderr() : 
-                                (result.getErrorMessage() != null ? result.getErrorMessage() : null))
+                        .stdout(truncateIfNeeded(result.getStdout(), 2000)) // Giới hạn 2000 ký tự để tránh lỗi database
+                        .stderr(truncateIfNeeded(
+                            result.getStderr() != null ? result.getStderr() : 
+                            (result.getErrorMessage() != null ? result.getErrorMessage() : null),
+                            2000 // Giới hạn 2000 ký tự để tránh lỗi database
+                        ))
                         .isDeleted(false)
                         .build();
 
@@ -200,6 +205,9 @@ public class JudgeService {
             updateSubmissionStatus(submission, isAccepted, score, totalTestcases,
                     isAccepted ? "Accepted" : String.format("Wrong Answer (%d/%d)", totalCorrect, totalTestcases),
                     isAccepted ? "ACCEPTED" : "WRONG_ANSWER");
+
+            // Cập nhật ContestSubmissionEntity.score nếu submission này thuộc contest
+            updateContestSubmissionScore(submissionId, totalCorrect, totalTestcases);
 
             log.info("✅ Judged submission {}: {}/{} test cases passed, score={}%, isAccepted={}", 
                 submissionId, totalCorrect, totalTestcases, score, isAccepted);
@@ -293,6 +301,20 @@ public class JudgeService {
     }
 
     /**
+     * Truncate string nếu quá dài để tránh lỗi database
+     * Giới hạn 2000 ký tự (an toàn cho hầu hết các database column, kể cả VARCHAR)
+     */
+    private String truncateIfNeeded(String text, int maxLength) {
+        if (text == null) return null;
+        if (text.length() <= maxLength) return text;
+        // Truncate và thêm "..." để biết đã bị cắt
+        // Log warning nếu bị truncate để debug
+        log.warn("Truncating text from {} to {} characters (stderr/stdout too long)", 
+                text.length(), maxLength);
+        return text.substring(0, maxLength - 3) + "...";
+    }
+
+    /**
      * Cập nhật trạng thái submission
      * Sử dụng REQUIRES_NEW để tạo transaction mới và commit ngay, đảm bảo frontend có thể poll được ngay lập tức
      */
@@ -375,6 +397,57 @@ public class JudgeService {
         } catch (Exception e) {
             log.error("❌ Error updating best submission for submission {}: {}", 
                     freshSubmission.getId(), e.getMessage(), e);
+            // Không throw exception để không ảnh hưởng đến quá trình judge
+        }
+    }
+
+    /**
+     * Cập nhật score cho ContestSubmissionEntity sau khi judge xong
+     * Tính lại score dựa trên problem points (không phải phần trăm)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    private void updateContestSubmissionScore(Long submissionId, int totalCorrect, int totalTestcases) {
+        try {
+            // Tìm tất cả ContestSubmissionEntity có submissionId này
+            List<ContestSubmissionEntity> contestSubmissions = contestSubmissionRepository.findBySubmissionId(submissionId);
+            
+            if (contestSubmissions.isEmpty()) {
+                return; // Không thuộc contest nào
+            }
+
+            for (ContestSubmissionEntity contestSubmission : contestSubmissions) {
+                // Lấy problem points từ contest problem
+                Long contestId = contestSubmission.getContest().getId();
+                Long problemId = contestSubmission.getSubmission().getProblem().getId();
+                
+                Optional<ContestProblemEntity> contestProblemOpt = contestProblemRepository
+                        .findByContestIdAndProblemId(contestId, problemId);
+                
+                if (contestProblemOpt.isPresent()) {
+                    ContestProblemEntity contestProblem = contestProblemOpt.get();
+                    Integer problemPoints = contestProblem.getPoints() != null ? contestProblem.getPoints() : 100;
+                    
+                    // Tính lại score: (số testcase đúng / tổng số testcase) * điểm của bài
+                    Integer newScore = 0;
+                    if (totalTestcases > 0 && totalCorrect >= 0) {
+                        double scoreDouble = ((double) totalCorrect / (double) totalTestcases) * problemPoints;
+                        newScore = (int) Math.round(scoreDouble);
+                    }
+                    
+                    // Cập nhật score
+                    contestSubmission.setScore(newScore);
+                    contestSubmissionRepository.save(contestSubmission);
+                    // Flush để đảm bảo score được lưu ngay lập tức
+                    entityManager.flush();
+                    // Refresh entity để đảm bảo có giá trị mới nhất
+                    entityManager.refresh(contestSubmission);
+                } else {
+                    log.warn("ContestProblemEntity not found: contestId={}, problemId={}", contestId, problemId);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error updating contest submission score for submission {}: {}", 
+                    submissionId, e.getMessage(), e);
             // Không throw exception để không ảnh hưởng đến quá trình judge
         }
     }

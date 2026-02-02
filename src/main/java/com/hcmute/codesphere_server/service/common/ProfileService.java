@@ -25,6 +25,8 @@ public class ProfileService {
     private final PostRepository postRepository;
     private final FollowService followService;
     private final PostService postService;
+    private final UserProblemBestRepository userProblemBestRepository;
+    private final ContestRegistrationRepository contestRegistrationRepository;
 
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(Long userId) {
@@ -36,6 +38,15 @@ public class ProfileService {
                 .filter(acc -> acc.getUser() != null && acc.getUser().getId().equals(userId))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy account"));
+
+        // Tính thống kê: số bài tập đã hoàn thành (AC)
+        Long completedProblems = userProblemBestRepository.countSolvedByUserId(userId);
+        if (completedProblems == null) {
+            completedProblems = 0L;
+        }
+
+        // Tính thống kê: số contest đã tham gia
+        Long contestsParticipated = (long) contestRegistrationRepository.findByUserId(userId).size();
 
         return UserProfileResponse.builder()
                 .userId(user.getId())
@@ -52,6 +63,8 @@ public class ProfileService {
                 .isBlocked(account.getIsBlocked())
                 .createdAt(account.getCreatedAt())
                 .updatedAt(account.getUpdatedAt())
+                .completedProblems(completedProblems)
+                .contestsParticipated(contestsParticipated)
                 .build();
     }
 

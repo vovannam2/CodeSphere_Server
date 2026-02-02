@@ -64,6 +64,50 @@ public class NotificationService {
         return notification;
     }
 
+    @Transactional
+    public NotificationEntity createContestNotification(Long userId, String title, String content, Long relatedContestId) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
+
+        NotificationEntity notification = NotificationEntity.builder()
+                .user(user)
+                .type(NotificationEntity.NotificationType.CONTEST_REMINDER)
+                .title(title)
+                .content(content)
+                .relatedContestId(relatedContestId)
+                .isRead(false)
+                .createdAt(Instant.now())
+                .build();
+
+        notification = notificationRepository.save(notification);
+
+        // Gửi notification real-time qua WebSocket
+        try {
+            NotificationResponse response = mapToNotificationResponse(notification);
+            messagingTemplate.convertAndSendToUser(
+                    userId.toString(),
+                    "/queue/notifications",
+                    response
+            );
+            System.out.println("Contest notification sent via WebSocket to user: " + userId);
+        } catch (Exception e) {
+            System.err.println("Error sending contest notification via WebSocket to user: " + userId);
+            e.printStackTrace();
+        }
+
+        return notification;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasContestNotification(Long userId, Long contestId, Instant since) {
+        return notificationRepository.existsByUserIdAndTypeAndContestIdSince(
+                userId,
+                NotificationEntity.NotificationType.CONTEST_REMINDER,
+                contestId,
+                since
+        );
+    }
+
     @Transactional(readOnly = true)
     public Page<NotificationResponse> getNotifications(Long userId, String type, Boolean isRead, Pageable pageable) {
         Page<NotificationEntity> notifications;
@@ -242,6 +286,7 @@ public class NotificationService {
                 .relatedPostId(entity.getRelatedPostId())
                 .relatedCommentId(entity.getRelatedCommentId())
                 .relatedConversationId(entity.getRelatedConversationId())
+                .relatedContestId(entity.getRelatedContestId())
                 .isRead(entity.getIsRead())
                 .readAt(entity.getReadAt())
                 .createdAt(entity.getCreatedAt())

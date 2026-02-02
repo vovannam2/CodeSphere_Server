@@ -28,7 +28,7 @@ public class CodeRunService {
     private final DockerExecutionHelper dockerExecutionHelper;
 
     private static final Set<String> SUPPORTED_LANGUAGES = Set.of(
-            "java", "python", "cpp", "c", "javascript"
+            "java", "python", "cpp", "c", "javascript", "node", "php"
     );
 
     @Transactional(readOnly = true)

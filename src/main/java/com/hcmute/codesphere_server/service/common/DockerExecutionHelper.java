@@ -52,7 +52,11 @@ public class DockerExecutionHelper {
             "c", new LanguageConfig("gcc:latest", "main.c", 
                     "gcc /src/main.c -o /src/main && /src/main"),
             "javascript", new LanguageConfig("node:18-alpine", "main.js", 
-                    "node /src/main.js")
+                    "node /src/main.js"),
+            "node", new LanguageConfig("node:18-alpine", "main.js", 
+                    "node /src/main.js"),
+            "php", new LanguageConfig("php:8.2-alpine", "main.php", 
+                    "php /src/main.php")
     );
 
     @Data
@@ -140,8 +144,8 @@ public class DockerExecutionHelper {
 
             // 4. Tạo container với volume mount
             long memoryBytes = (memoryLimitMb != null ? memoryLimitMb : 256L) * 1024 * 1024;
-            // Tăng timeout cho compile: ít nhất 60 giây hoặc dựa trên timeLimitMs
-            int timeoutSeconds = Math.max(60, (timeLimitMs != null ? timeLimitMs : 30000) / 1000 + 10);
+            // Timeout cho compile: ít nhất 40 giây hoặc dựa trên timeLimitMs
+            int timeoutSeconds = Math.max(40, (timeLimitMs != null ? timeLimitMs : 30000) / 1000 + 10);
 
             containerId = createContainerWithMount(config.image, compileCommand, 
                     hostPath, memoryBytes, timeoutSeconds);
@@ -221,8 +225,8 @@ public class DockerExecutionHelper {
 
             // 3. Tạo container với volume mount
             long memoryBytes = (memoryLimitMb != null ? memoryLimitMb : 256L) * 1024 * 1024;
-            // Tăng timeout cho run: ít nhất 30 giây hoặc dựa trên timeLimitMs
-            int timeoutSeconds = Math.max(30, (timeLimitMs != null ? timeLimitMs : 10000) / 1000 + 5);
+            // Timeout cho run: ít nhất 40 giây hoặc dựa trên timeLimitMs
+            int timeoutSeconds = Math.max(40, (timeLimitMs != null ? timeLimitMs : 10000) / 1000 + 5);
 
             containerId = createContainerWithMount(config.image, actualCommand, 
                     hostPath, memoryBytes, timeoutSeconds);
@@ -414,7 +418,7 @@ public class DockerExecutionHelper {
             }
             
             // Đợi một chút để đảm bảo đọc hết output
-            Thread.sleep(200);
+            Thread.sleep(100);
 
             String stdoutStr = stdout.toString().trim();
             String stderrStr = stderr.toString().trim();

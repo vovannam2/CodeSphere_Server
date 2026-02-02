@@ -38,9 +38,11 @@ public class SubmissionTestcaseEntity {
 	private Integer memoryKb;
 
 	@Lob
+	@Column(columnDefinition = "LONGTEXT")
 	private String stdout;
 
 	@Lob
+	@Column(columnDefinition = "LONGTEXT")
 	private String stderr;
 
 	@Column(nullable = false)

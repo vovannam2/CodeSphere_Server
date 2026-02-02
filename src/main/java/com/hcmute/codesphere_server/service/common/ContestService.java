@@ -7,6 +7,7 @@ import com.hcmute.codesphere_server.model.payload.request.RegisterContestRequest
 import com.hcmute.codesphere_server.model.payload.response.*;
 import com.hcmute.codesphere_server.repository.common.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ContestService {
 
     private final ContestRepository contestRepository;
@@ -30,6 +32,7 @@ public class ContestService {
     private final UserRepository userRepository;
     private final SubmissionRepository submissionRepository;
     private final UserProblemBestRepository userProblemBestRepository;
+    private final NotificationService notificationService;
 
     public Page<ContestResponse> getContests(Pageable pageable, Boolean isPublic, String status, String contestType, Long userId) {
         Specification<ContestEntity> spec = Specification.where(null);
@@ -307,6 +310,82 @@ public class ContestService {
                 .build();
 
         contestRegistrationRepository.save(registration);
+        
+        // Gửi notification ngay nếu contest sắp bắt đầu (trong vòng 10 phút)
+        if (contest.getStartTime() != null) {
+            long minutesUntilStart = ChronoUnit.MINUTES.between(now, contest.getStartTime());
+            
+            // Nếu contest còn <= 10 phút nữa bắt đầu, gửi notification ngay
+            if (minutesUntilStart > 0 && minutesUntilStart <= 10) {
+                try {
+                    // Kiểm tra xem đã gửi notification chưa (tránh gửi trùng)
+                    Instant veryLongAgo = now.minus(365, ChronoUnit.DAYS);
+                    boolean alreadyNotified = notificationService.hasContestNotification(
+                            userId,
+                            contestId,
+                            veryLongAgo
+                    );
+                    
+                    if (!alreadyNotified) {
+                        String title = "Contest Starting Soon";
+                        String content = String.format("Contest '%s' will start in %d minute(s). Get ready!",
+                                contest.getTitle(),
+                                minutesUntilStart);
+                        
+                        notificationService.createContestNotification(
+                                userId,
+                                title,
+                                content,
+                                contestId
+                        );
+                        System.out.println("Sent immediate contest reminder to user " + userId + 
+                                " for contest " + contestId + " (" + minutesUntilStart + " minutes before start)");
+                    }
+                } catch (Exception e) {
+                    // Log error nhưng không throw (đăng ký vẫn thành công)
+                    System.err.println("Error sending immediate contest notification to user " + userId + 
+                            " for contest " + contestId + ": " + e.getMessage());
+                }
+            }
+        }
+        
+        // Gửi notification ngay nếu contest sắp bắt đầu (trong vòng 10 phút)
+        if (contest.getStartTime() != null) {
+            long minutesUntilStart = ChronoUnit.MINUTES.between(now, contest.getStartTime());
+            
+            // Nếu contest còn <= 10 phút nữa bắt đầu, gửi notification ngay
+            if (minutesUntilStart > 0 && minutesUntilStart <= 10) {
+                try {
+                    // Kiểm tra xem đã gửi notification chưa (tránh gửi trùng)
+                    Instant veryLongAgo = now.minus(365, ChronoUnit.DAYS);
+                    boolean alreadyNotified = notificationService.hasContestNotification(
+                            userId,
+                            contestId,
+                            veryLongAgo
+                    );
+                    
+                    if (!alreadyNotified) {
+                        String title = "Contest Starting Soon";
+                        String content = String.format("Contest '%s' will start in %d minute(s). Get ready!",
+                                contest.getTitle(),
+                                minutesUntilStart);
+                        
+                        notificationService.createContestNotification(
+                                userId,
+                                title,
+                                content,
+                                contestId
+                        );
+                        System.out.println("Sent immediate contest reminder to user " + userId + 
+                                " for contest " + contestId + " (" + minutesUntilStart + " minutes before start)");
+                    }
+                } catch (Exception e) {
+                    // Log error nhưng không throw (đăng ký vẫn thành công)
+                    System.err.println("Error sending immediate contest notification to user " + userId + 
+                            " for contest " + contestId + ": " + e.getMessage());
+                }
+            }
+        }
     }
 
     @Transactional
@@ -1054,17 +1133,20 @@ public class ContestService {
             
             if (!contestSubmissions.isEmpty()) {
                 // Tìm submission có score cao nhất trong attempt hiện tại
+                // Sắp xếp theo score giảm dần, nếu cùng score thì ưu tiên submission sớm hơn
                 ContestSubmissionEntity bestContestSubmission = contestSubmissions.stream()
-                        .max((a, b) -> {
+                        .sorted((a, b) -> {
                             // Tính điểm cho a và b (có thể từ score hoặc parse từ statusMsg)
                             Integer scoreA = calculateScoreFromSubmission(a, cp.getPoints() != null ? cp.getPoints() : 100);
                             Integer scoreB = calculateScoreFromSubmission(b, cp.getPoints() != null ? cp.getPoints() : 100);
                             
+                            // So sánh score: score cao hơn đứng trước (giảm dần)
                             int scoreCompare = Integer.compare(scoreB, scoreA);
                             if (scoreCompare != 0) return scoreCompare;
-                            // Nếu cùng score, ưu tiên submission sớm hơn
+                            // Nếu cùng score, ưu tiên submission sớm hơn (tăng dần theo thời gian)
                             return a.getSubmittedAt().compareTo(b.getSubmittedAt());
                         })
+                        .findFirst()  // Lấy submission đầu tiên sau khi sắp xếp (score cao nhất)
                         .orElse(null);
                 
                 if (bestContestSubmission != null) {
@@ -1099,13 +1181,18 @@ public class ContestService {
 
     // Helper method để tính điểm từ submission (từ score hoặc parse từ statusMsg)
     private Integer calculateScoreFromSubmission(ContestSubmissionEntity cs, Integer problemPoints) {
-        // Ưu tiên lấy từ score trước
-        if (cs.getScore() != null && cs.getScore() > 0) {
-            return cs.getScore();
+        SubmissionEntity submission = cs.getSubmission();
+        
+        // Nếu submission đã được judge (có totalTestcases > 0), tính lại từ submission để đảm bảo chính xác
+        // Vì ContestSubmissionEntity.score có thể chưa được cập nhật hoặc bị lỗi
+        if (submission.getTotalTestcases() != null && submission.getTotalTestcases() > 0 
+                && submission.getTotalCorrect() != null && submission.getTotalCorrect() >= 0) {
+            // Tính điểm từ totalCorrect/totalTestcases (chính xác nhất)
+            double scoreDouble = ((double) submission.getTotalCorrect() / (double) submission.getTotalTestcases()) * problemPoints;
+            return (int) Math.round(scoreDouble);
         }
         
-        // Nếu score = 0 hoặc null, thử parse từ statusMsg
-        SubmissionEntity submission = cs.getSubmission();
+        // Nếu chưa có totalTestcases, thử parse từ statusMsg
         if (submission.getStatusMsg() != null) {
             String statusMsg = submission.getStatusMsg();
             // Pattern: "Wrong Answer (1/3)" hoặc "Accepted (3/3)"
@@ -1127,11 +1214,9 @@ public class ContestService {
             }
         }
         
-        // Nếu không parse được, thử từ totalCorrect/totalTestcases
-        if (submission.getTotalTestcases() != null && submission.getTotalTestcases() > 0 
-                && submission.getTotalCorrect() != null && submission.getTotalCorrect() >= 0) {
-            double scoreDouble = ((double) submission.getTotalCorrect() / (double) submission.getTotalTestcases()) * problemPoints;
-            return (int) Math.round(scoreDouble);
+        // Cuối cùng, nếu ContestSubmissionEntity.score đã được set, dùng nó (kể cả khi = 0)
+        if (cs.getScore() != null) {
+            return cs.getScore();
         }
         
         return 0;

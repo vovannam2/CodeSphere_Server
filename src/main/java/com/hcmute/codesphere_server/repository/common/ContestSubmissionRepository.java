@@ -15,11 +15,18 @@ public interface ContestSubmissionRepository extends JpaRepository<ContestSubmis
     @Query("SELECT cs FROM ContestSubmissionEntity cs WHERE cs.contest.id = :contestId ORDER BY cs.submittedAt DESC")
     List<ContestSubmissionEntity> findByContestId(@Param("contestId") Long contestId);
 
-    @Query("SELECT cs FROM ContestSubmissionEntity cs WHERE cs.contest.id = :contestId AND cs.submission.user.id = :userId ORDER BY cs.submittedAt DESC")
+    @Query("SELECT DISTINCT cs FROM ContestSubmissionEntity cs " +
+           "JOIN FETCH cs.submission s " +
+           "JOIN FETCH s.problem p " +
+           "WHERE cs.contest.id = :contestId AND s.user.id = :userId " +
+           "ORDER BY cs.submittedAt DESC")
     List<ContestSubmissionEntity> findByContestIdAndUserId(@Param("contestId") Long contestId, @Param("userId") Long userId);
 
     @Modifying
     @Query("DELETE FROM ContestSubmissionEntity cs WHERE cs.contest.id = :contestId AND cs.submission.user.id = :userId")
     void deleteByContestIdAndUserId(@Param("contestId") Long contestId, @Param("userId") Long userId);
+
+    @Query("SELECT cs FROM ContestSubmissionEntity cs WHERE cs.submission.id = :submissionId")
+    List<ContestSubmissionEntity> findBySubmissionId(@Param("submissionId") Long submissionId);
 }
 

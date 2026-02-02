@@ -24,6 +24,7 @@ public class NotificationResponse {
     private Long relatedPostId;
     private Long relatedCommentId;
     private Long relatedConversationId;
+    private Long relatedContestId;
     private Boolean isRead;
     private Instant readAt;
     private Instant createdAt;

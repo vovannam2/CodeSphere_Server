@@ -24,5 +24,11 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     Page<NotificationEntity> findByUserIdAndType(@Param("userId") Long userId, 
                                                  @Param("type") NotificationEntity.NotificationType type, 
                                                  Pageable pageable);
+    
+    @Query("SELECT COUNT(n) > 0 FROM NotificationEntity n WHERE n.user.id = :userId AND n.type = :type AND n.relatedContestId = :contestId AND n.createdAt >= :since")
+    boolean existsByUserIdAndTypeAndContestIdSince(@Param("userId") Long userId,
+                                                    @Param("type") NotificationEntity.NotificationType type,
+                                                    @Param("contestId") Long contestId,
+                                                    @Param("since") java.time.Instant since);
 }
 
